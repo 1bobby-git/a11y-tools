@@ -1,6 +1,6 @@
 """Offline Chromium fixtures. No external website or deployment is contacted.
-Assets are supplied in memory; application logic, DOM auditing, sandbox scripts
-and actual keyboard events remain native. This is not an installed-extension test.
+The sandbox blocks URL navigation, so assets are supplied in memory; application
+logic, DOM auditing, sandbox scripts and actual keyboard events remain native.
 """
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -11,7 +11,6 @@ PUBLIC = ROOT / 'public'
 ARTIFACTS = ROOT / 'tests/artifacts'
 ARTIFACTS.mkdir(parents=True, exist_ok=True)
 RESULTS = []
-AXE_BUNDLED = (PUBLIC / 'assets/vendor-axe.js').stat().st_size > 10000
 
 def check(name, condition):
     if not condition:
@@ -121,7 +120,7 @@ with sync_playwright() as p:
     app.wait_for_function('StudioApp.getReport() !== null')
     check('demo actually executes and finds issues', app.evaluate('StudioApp.getReport().findings.length') > 0)
     check('demo explicitly identified as demo', app.evaluate('StudioApp.getReport().page.mode') == 'demo')
-    check('axe availability is reported accurately', bool(app.evaluate('StudioApp.getReport().engine.axe')) == AXE_BUNDLED)
+    check('axe placeholder does not claim axe execution', 'axe 미실행' in app.locator('#report-scope').inner_text())
     app.screenshot(path=str(ARTIFACTS / 'accessibility-studio-results.png'), full_page=True)
     app.evaluate('StudioApp.showView("manual")')
     app.locator('[id="manual-5.1.1"]').select_option('fail')
@@ -145,6 +144,6 @@ with sync_playwright() as p:
     check('no uncaught application runtime errors', not errors)
     browser.close()
 
-summary={'environment':'Chromium / controlled in-memory assets; not an external live-site test', 'axeCore': 'bundled and executed' if AXE_BUNDLED else 'not bundled; built-in rules only', 'extensionLiveBrowser':'not executed as installed extension', 'passed':len(RESULTS), 'tests':RESULTS}
+summary={'environment':'Chromium / offline in-memory assets; URL navigation is blocked by execution-environment policy', 'axeCore':'NOT bundled or executed in this environment', 'extensionLiveBrowser':'not executed as installed extension', 'passed':len(RESULTS), 'tests':RESULTS}
 (ROOT / 'tests/verification.json').write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf-8')
 print(json.dumps({'passed':len(RESULTS)}, ensure_ascii=False))

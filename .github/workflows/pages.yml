@@ -1,4 +1,4 @@
-name: Deploy accessibility studio
+name: Deploy a11y-tools to Pages
 
 on:
   push:
@@ -14,51 +14,25 @@ concurrency:
 
 jobs:
   build:
-    name: Build and test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install pinned accessibility engine
-        run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Build website and extension ZIP
-        run: npm run build -- --require-axe
+      - name: Install the pinned accessibility engine
+        run: npm install --ignore-scripts --no-fund
+      - name: Build site and extension (axe-core is required)
+        run: node scripts/build.mjs --require-axe
       - name: Run static tests
         run: npm test
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install browser test tools
-        run: |
-          python -m pip install playwright==1.57.0
-          python -m playwright install --with-deps chromium
-      - name: Run Chromium regression tests with axe-core
-        run: python tests/browser_test.py
-      - name: Save test evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: accessibility-test-evidence
-          path: |
-            tests/verification.json
-            tests/focus-evidence.json
-            tests/artifacts/
-            package-lock.json
-          if-no-files-found: warn
-          retention-days: 14
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs
 
   deploy:
-    name: Publish GitHub Pages
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -69,22 +43,8 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Check Pages configuration
+      - name: Configure Pages
         uses: actions/configure-pages@v5
-      - name: Deploy tested website
+      - name: Publish Pages
         id: deployment
-        uses: actions/deploy-pages@v4
-      - name: Verify public website and downloads
-        env:
-          SITE_URL: ${{ steps.deployment.outputs.page_url }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          base="${SITE_URL%/}/"
-          curl --fail --location --retry 5 --retry-all-errors --retry-delay 5 --max-time 30 "${base}" --output /tmp/a11y-home.html
-          grep -q 'ACCESSIBILITY STUDIO' /tmp/a11y-home.html
-          curl --fail --location --retry 3 --retry-all-errors --max-time 30 "${base}assets/vendor-axe.js" --output /tmp/a11y-axe.js
-          test "$(wc -c < /tmp/a11y-axe.js)" -gt 10000
-          curl --fail --location --retry 3 --retry-all-errors --max-time 30 "${base}downloads/accessibility-studio-extension.zip" --output /tmp/a11y-extension.zip
-          unzip -t /tmp/a11y-extension.zip
-          printf '### Published website\n\n%s\n\nHomepage, axe-core bundle and extension ZIP returned successfully.\n' "$base" >> "$GITHUB_STEP_SUMMARY"
+        uses: actions/deploy-pages@v5

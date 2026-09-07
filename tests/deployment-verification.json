@@ -1,0 +1,18 @@
+{
+  "target": "1bobby-git/a11y-tools",
+  "prepared_url": "https://1bobby-git.github.io/a11y-tools/",
+  "deployment_status": "not_deployed",
+  "remote_changes_made": false,
+  "static_tests_passed": 13,
+  "browser_fixture_tests_passed": 45,
+  "core_files_unchanged": true,
+  "missing_axe_production_build_rejected": true,
+  "windows_script_executed": false,
+  "remote_actions_executed": false,
+  "axe_bundled_in_archive": false,
+  "limitations": [
+    "GitHub connector provides no write actions",
+    "No authenticated Git CLI available",
+    "Terminal cannot resolve GitHub/npm hosts"
+  ]
+}

@@ -1,0 +1,188 @@
+{
+  "environment": "Chromium / offline in-memory assets; URL navigation is blocked by execution-environment policy",
+  "axeCore": "NOT bundled or executed in this environment",
+  "extensionLiveBrowser": "not executed as installed extension",
+  "passed": 45,
+  "tests": [
+    {
+      "test": "missing document title is detected",
+      "status": "passed"
+    },
+    {
+      "test": "missing document language is detected",
+      "status": "passed"
+    },
+    {
+      "test": "duplicate ID is detected",
+      "status": "passed"
+    },
+    {
+      "test": "missing image alternative is detected",
+      "status": "passed"
+    },
+    {
+      "test": "decorative empty alt is REVIEW not ERROR",
+      "status": "passed"
+    },
+    {
+      "test": "presentational image is not missing-alt error",
+      "status": "passed"
+    },
+    {
+      "test": "meaningful image alternative is not missing-alt error",
+      "status": "passed"
+    },
+    {
+      "test": "aria-label button is recognized",
+      "status": "passed"
+    },
+    {
+      "test": "hidden icon does not label a button",
+      "status": "passed"
+    },
+    {
+      "test": "explicit form label is recognized",
+      "status": "passed"
+    },
+    {
+      "test": "password value is not collected",
+      "status": "passed"
+    },
+    {
+      "test": "broken ARIA label reference is detected",
+      "status": "passed"
+    },
+    {
+      "test": "lazy aria-controls target remains REVIEW",
+      "status": "passed"
+    },
+    {
+      "test": "missing video track remains REVIEW",
+      "status": "passed"
+    },
+    {
+      "test": "heading jump remains REVIEW",
+      "status": "passed"
+    },
+    {
+      "test": "positive tabindex remains REVIEW",
+      "status": "passed"
+    },
+    {
+      "test": "iframe content explicitly uninspected",
+      "status": "passed"
+    },
+    {
+      "test": "missing axe engine explicitly reported",
+      "status": "passed"
+    },
+    {
+      "test": "URL query and fragment are removed",
+      "status": "passed"
+    },
+    {
+      "test": "disabled fieldset child is excluded from candidates",
+      "status": "passed"
+    },
+    {
+      "test": "hidden button is excluded from candidates",
+      "status": "passed"
+    },
+    {
+      "test": "IDs in separate shadow trees are not duplicates",
+      "status": "passed"
+    },
+    {
+      "test": "open shadow DOM is inspected",
+      "status": "passed"
+    },
+    {
+      "test": "real Tab event is recorded",
+      "status": "passed"
+    },
+    {
+      "test": "focus-triggered horizontal overflow is detected",
+      "status": "passed"
+    },
+    {
+      "test": "focus-triggered surrounding layout change is detected",
+      "status": "passed"
+    },
+    {
+      "test": "recorder does not mutate DOM/styles",
+      "status": "passed"
+    },
+    {
+      "test": "stop removes focus recording listeners",
+      "status": "passed"
+    },
+    {
+      "test": "33 manual checklist controls are rendered",
+      "status": "passed"
+    },
+    {
+      "test": "desktop layout has no page overflow",
+      "status": "passed"
+    },
+    {
+      "test": "390px mobile layout has no page overflow",
+      "status": "passed"
+    },
+    {
+      "test": "demo actually executes and finds issues",
+      "status": "passed"
+    },
+    {
+      "test": "demo explicitly identified as demo",
+      "status": "passed"
+    },
+    {
+      "test": "axe placeholder does not claim axe execution",
+      "status": "passed"
+    },
+    {
+      "test": "manual decision and evidence are included in report",
+      "status": "passed"
+    },
+    {
+      "test": "HTML report contains actual review evidence",
+      "status": "passed"
+    },
+    {
+      "test": "invalid report schema is rejected",
+      "status": "passed"
+    },
+    {
+      "test": "review counts are not a legal score",
+      "status": "passed"
+    },
+    {
+      "test": "imported HTML is rendered as text",
+      "status": "passed"
+    },
+    {
+      "test": "untrusted source scripts are not executed",
+      "status": "passed"
+    },
+    {
+      "test": "inline event handlers are removed",
+      "status": "passed"
+    },
+    {
+      "test": "external image source is removed",
+      "status": "passed"
+    },
+    {
+      "test": "sandbox does not grant same-origin access",
+      "status": "passed"
+    },
+    {
+      "test": "source resource sanitization is reported",
+      "status": "passed"
+    },
+    {
+      "test": "no uncaught application runtime errors",
+      "status": "passed"
+    }
+  ]
+}

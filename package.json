@@ -4,16 +4,12 @@
   "private": true,
   "description": "Korean accessibility inspection workspace with live-tab focus recording",
   "license": "MIT",
-  "engines": {
-    "node": ">=20"
-  },
+  "engines": {"node": ">=20"},
   "scripts": {
     "build": "node scripts/build.mjs",
     "start": "node scripts/serve.mjs",
     "test": "node --test tests/*.test.mjs",
     "test:browser": "python tests/browser_test.py"
   },
-  "dependencies": {
-    "axe-core": "4.13.0"
-  }
+  "dependencies": {"axe-core": "4.13.0"}
 }

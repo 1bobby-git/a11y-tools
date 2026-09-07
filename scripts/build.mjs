@@ -11,8 +11,6 @@ if(hasAxe){
   await fs.copyFile(upstream,path.join(pub,'assets/vendor-axe.js'));
   await fs.mkdir(path.join(pub,'licenses'),{recursive:true});
   await fs.copyFile(path.join(root,'node_modules/axe-core/LICENSE'),path.join(pub,'licenses/axe-core-LICENSE.txt'));
-  const thirdParty=path.join(root,'node_modules/axe-core/LICENSE-3RD-PARTY.txt');
-  if(await exists(thirdParty))await fs.copyFile(thirdParty,path.join(pub,'licenses/axe-core-LICENSE-3RD-PARTY.txt'));
 }
 if(await exists(path.join(root,'LICENSE')))await fs.copyFile(path.join(root,'LICENSE'),path.join(ext,'LICENSE'));
 await fs.cp(path.join(pub,'assets'),path.join(ext,'assets'),{recursive:true});
@@ -35,5 +33,12 @@ function zip(files){
 await fs.mkdir(path.join(pub,'downloads'),{recursive:true});
 await fs.writeFile(path.join(pub,'downloads/accessibility-studio-extension.zip'),zip(await walk(ext)));
 await fs.writeFile(path.join(pub,'.nojekyll'),'');
+const packageInfo=JSON.parse(await fs.readFile(path.join(root,'package.json'),'utf8'));
+await fs.writeFile(path.join(pub,'build-info.json'),JSON.stringify({
+  name: packageInfo.name, version: packageInfo.version,
+  sha: process.env.GITHUB_SHA || null,
+  repository: process.env.GITHUB_REPOSITORY || '1bobby-git/a11y-tools',
+  axeBundled: hasAxe, builtAt: new Date().toISOString()
+},null,2)+'\n');
 await fs.cp(pub,docs,{recursive:true});
 console.log(`Built GitHub Pages docs/ and extension ZIP. axe-core: ${hasAxe?'bundled from installed package':'NOT BUNDLED — built-in rules only'}`);
