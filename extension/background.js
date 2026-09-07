@@ -1,4 +1,5 @@
 'use strict';
+importScripts('live.js');
 let queue=Promise.resolve();
 function serial(task){const result=queue.then(task,task);queue=result.catch(()=>{});return result;}
 async function tabOrThrow(tabId){
@@ -8,18 +9,22 @@ async function tabOrThrow(tabId){
   return tab;
 }
 async function inject(tabId){
-  await chrome.scripting.executeScript({target:{tabId},files:['assets/vendor-axe.js','assets/core.js','assets/evidence.js','assets/focus.js']});
+  await chrome.scripting.executeScript({target:{tabId},files:['assets/vendor-axe.js','assets/core.js','assets/evidence.js','assets/focus.js','assets/player.js']});
 }
 async function audit(tabId,state){
-  await tabOrThrow(tabId);await inject(tabId);
-  const results=await chrome.scripting.executeScript({target:{tabId},func:async label=>{
-    return globalThis.StudioAudit.run(document,{mode:'live',state:label||'현재 화면'});
-  },args:[String(state||'').slice(0,120)]});
-  const report=results[0]?.result;if(!report)throw new Error('검사 결과가 없습니다. 새로고침 후 다시 실행하세요.');
-  const scanId=crypto.randomUUID();
-  await chrome.scripting.executeScript({target:{tabId},func:id=>{globalThis.__studioScanId=id;},args:[scanId]});
-  const tab=await tabOrThrow(tabId);report.sourceTab={tabId,windowId:tab.windowId,scanId};
-  return report;
+  const original=await tabOrThrow(tabId);await inject(tabId);const scanId=crypto.randomUUID();
+  const results=await chrome.scripting.executeScript({target:{tabId},func:async(label,id)=>{
+    globalThis.StudioPlayer?.stop('현재 DOM 검사');
+    const report=await globalThis.StudioAudit.run(document,{mode:'live',state:label||'현재 화면'});
+    globalThis.__studioScanId=id;return report;
+  },args:[String(state||'').slice(0,120),scanId]});
+  const item=results.find(r=>r.frameId===0)||results[0],report=item?.result;
+  if(!report||!item.documentId)throw new Error('검사 결과 또는 문서 식별자가 없습니다. Chrome/Edge 106 이상에서 다시 실행하세요.');
+  const tab=await tabOrThrow(tabId);
+  if(new URL(original.url).origin!==new URL(tab.url).origin)throw new Error('검사 중 다른 사이트로 이동했습니다. 다시 검사하세요.');
+  const check=await chrome.scripting.executeScript({target:{tabId,documentIds:[item.documentId]},func:id=>globalThis.__studioScanId===id,args:[scanId]});
+  if(check[0]?.result!==true)throw new Error('검사 중 원본 문서가 변경되었습니다. 다시 검사하세요.');
+  report.version='0.3.0';report.sourceTab={tabId,windowId:tab.windowId,scanId};await registerLiveSource(report,tab,item.documentId);return report;
 }
 async function saveReport(report){await chrome.storage.local.set({latestReport:report});}
 async function openReport(){await chrome.tabs.create({url:chrome.runtime.getURL('report.html#results')});}
@@ -35,8 +40,10 @@ async function handle(message,sender){
     await chrome.storage.session.set({focusSession});return {ok:true};
   }
   // Only extension pages initiate control operations. Page content can only report focus.
-  if(sender.tab || !sender.url?.startsWith(chrome.runtime.getURL('')))throw new Error('지원하지 않는 요청 출처입니다.');
+  if(sender.id!==chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL('')))throw new Error('지원하지 않는 요청 출처입니다.');
   const {action,tabId,state}=message;
+  if(action==='refresh-report')return refreshLiveReport(message);
+  if(action==='player-control')return controlLivePlayer(message);
   if(action==='locate-evidence'||action==='capture-evidence')return evidenceAction(message);
   if(action==='audit'){
     const report=await audit(tabId,state);await saveReport(report);await openReport();return {ok:true,message:`검사 완료: ${report.findings.length}건. 보고서 탭을 확인하세요.`};
@@ -71,7 +78,7 @@ async function handle(message,sender){
   if(action==='delete'){
     const {focusSession}=await chrome.storage.session.get('focusSession');
     if(focusSession){try{await chrome.scripting.executeScript({target:{tabId:focusSession.tabId},func:()=>globalThis.StudioFocus?.stop()});}catch{}}
-    await chrome.storage.local.remove('latestReport');await chrome.storage.session.remove('focusSession');return {ok:true,message:'확장 프로그램의 저장 보고서와 초점 기록을 삭제했습니다.'};
+    await chrome.storage.local.remove('latestReport');await chrome.storage.session.remove(['focusSession','liveSources']);return {ok:true,message:'확장 프로그램의 저장 보고서와 초점 기록을 삭제했습니다.'};
   }
   throw new Error('알 수 없는 동작입니다.');
 }

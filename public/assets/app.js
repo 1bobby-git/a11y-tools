@@ -3,7 +3,7 @@
   const $=id=>document.getElementById(id), S=window.StudioStandards, CFG=window.STUDIO_CONFIG;
   const labels={inspect:'검사 시작',results:'검사 결과',focus:'초점 · 레이아웃',manual:'수동 검토',guide:'사용 안내'};
   const groups={markup:'마크업',media:'이미지 · 영상',focus:'초점',other:'기타'};
-  let report=null, toastTimer=null, previewChannel=null, previewReportId=null, previewRecording=false, scriptCache=null;
+  let report=null, toastTimer=null, previewChannel=null, previewReportId=null, previewRecording=false, scriptCache=null, pendingRefresh=null;
   function el(tag,text,cls){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;}
   function uuid(){if(crypto.randomUUID)return crypto.randomUUID();const b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;const h=Array.from(b,v=>v.toString(16).padStart(2,'0')).join('');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;}
   function toast(message){$('toast').textContent=message;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{$('toast').textContent='';},7500);}
@@ -13,6 +13,7 @@
     document.querySelectorAll('[data-view]').forEach(n=>{if(n.dataset.view===key)n.setAttribute('aria-current','page');else n.removeAttribute('aria-current');});
     $('breadcrumb').textContent='워크스페이스 / '+labels[key];document.title=labels[key]+' — 접근성 스튜디오';
     if(focus)$('main').focus({preventScroll:true});
+    window.dispatchEvent(new CustomEvent('studio:view',{detail:key}));
   }
   window.addEventListener('hashchange',()=>showView(location.hash.slice(1),true));
   function empty(container,title,message){container.replaceChildren();const b=el('div',undefined,'empty-state');b.append(el('span','[ ]'),el('h2',title),el('p',message));container.append(b);}
@@ -44,7 +45,8 @@
     try{sessionStorage.setItem('a11y-studio-report',JSON.stringify(report));}catch{toast('브라우저 저장 공간이 부족합니다. 현재 결과를 JSON으로 저장하세요.');}
   }
   function loadReport(value,navigate=true){
-    report=validateReport(value);persist();renderAll();
+    report=validateReport(value);persist();renderAll();$('compare-summary').hidden=true;
+    window.dispatchEvent(new Event('studio:report'));
     if(navigate){location.hash='results';showView('results',true);}
     toast('검사 결과를 불러왔습니다. 미검사 범위도 확인하세요.');
   }
@@ -104,7 +106,7 @@
     StudioEvidenceUI.renderReader(c,report);
     if(report)$('focus-candidates').append(makeTable(['DOM 순서','이름','요소','tabindex','선택자'],report.inventory.focusables.map(v=>[v.domIndex,v.name,v.tag,v.tabindex,v.selector])));
   }
-  function ensureReport(){if(!report){report={schemaVersion:1,generator:'accessibility-studio',version:'0.1.0',id:uuid(),createdAt:new Date().toISOString(),page:{title:'수동 검토',url:'검사 대상 미지정',mode:'manual',state:'수동 검토'},engine:{builtin:null,axe:null},findings:[],checks:[],inventory:{images:[],media:[],headings:[],landmarks:[],focusables:[],frames:[]},focus:{events:[],layoutShifts:[]},limitations:['수동 검토만 작성했습니다. 자동 검사는 실행하지 않았습니다.'],manual:{}};}}
+  function ensureReport(){if(!report){report={schemaVersion:1,generator:'accessibility-studio',version:CFG.version,id:uuid(),createdAt:new Date().toISOString(),page:{title:'수동 검토',url:'검사 대상 미지정',mode:'manual',state:'수동 검토'},engine:{builtin:null,axe:null},findings:[],checks:[],inventory:{images:[],media:[],headings:[],landmarks:[],focusables:[],frames:[]},focus:{events:[],layoutShifts:[]},limitations:['수동 검토만 작성했습니다. 자동 검사는 실행하지 않았습니다.'],manual:{}};}}
   function renderManual(){const c=$('manual-list');c.replaceChildren();$('reviewer').value=report?.reviewer||'';
     for(const item of S){const row=el('article',undefined,'manual-row'),desc=el('div'),heading=el('h2');heading.append(el('span',item.id,'manual-id'),document.createTextNode(item.title));desc.append(heading,el('p',item.guide));
       const label=el('label','검토 결과'),select=el('select');select.id='manual-'+item.id;select.setAttribute('aria-label',item.title+' 검토 결과');for(const [value,name] of [['pending','미검토'],['pass','통과 (수동)'],['fail','실패 (수동)'],['na','해당 없음']]){const option=el('option',name);option.value=value;select.append(option);}select.value=report?.manual[item.id]?.status||'pending';label.append(select);
@@ -121,7 +123,7 @@
     return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"><title>접근성 검사 보고서</title><style>body{font:14px/1.8 Arial,'Malgun Gothic',sans-serif;max-width:1050px;margin:40px auto;padding:20px;color:#1c3329}article{border:1px solid #bccdc2;padding:20px;margin:15px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f2f5f2;padding:12px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bccdc2;padding:10px;text-align:left}h1{font-size:28px}h2{margin-top:35px}@media print{article{break-inside:avoid}body{margin:0}}</style></head><body><h1>접근성 검사 보고서</h1><p>${esc(report.page.title)} · ${esc(report.page.url)}</p><p>${esc(report.createdAt)} · ${esc(report.page.state)} · ${report.engine?.axe?'axe-core '+esc(report.engine.axe):'axe 미실행'}</p><p>자동 검사 오류 ${report.findings.filter(f=>f.status==='error').length}건 / 검토 필요 ${report.findings.filter(f=>f.status==='review').length}건. 법적 준수·인증 결과가 아닙니다.</p><h2>미검사 및 한계</h2>${report.limitations.map(n=>'<p>'+esc(n)+'</p>').join('')}<h2>자동 검사 결과</h2>${findings||'<p>발견 없음. 전체 준수를 의미하지 않습니다.</p>'}<h2>실제 스크린리더 실행 기록</h2><pre>${esc(JSON.stringify(report.screenReader||{status:'not-run'},null,2))}</pre><h2>실제 DOM 초점 기록</h2><pre>${esc(JSON.stringify(report.focus,null,2))}</pre><h2>KWCAG 2.2 수동 검토</h2><p>검토자 / 환경: ${esc(report.reviewer)}</p><table><thead><tr><th>항목</th><th>판단</th><th>근거</th></tr></thead><tbody>${manual}</tbody></table></body></html>`;
   }
   async function readReport(file){if(!file)throw new Error('파일을 선택하세요.');if(file.size>CFG.maxReportBytes)throw new Error('10 MB 이하의 보고서만 열 수 있습니다.');return validateReport(JSON.parse(await file.text()));}
-  async function getScripts(){if(!scriptCache)scriptCache=Promise.all(['core.js','evidence.js','focus.js','vendor-axe.js'].map(async file=>{const r=await fetch('assets/'+file);if(!r.ok)throw new Error('검사 엔진 파일을 읽지 못했습니다. 로컬 서버 또는 게시된 웹에서 실행하세요.');return r.text();})).catch(e=>{scriptCache=null;throw e;});return scriptCache;}
+  async function getScripts(){if(!scriptCache)scriptCache=Promise.all(['core.js','evidence.js','focus.js','vendor-axe.js','player.js','preview-runtime.js'].map(async file=>{const r=await fetch('assets/'+file);if(!r.ok)throw new Error('검사 엔진 파일을 읽지 못했습니다. 로컬 서버 또는 게시된 웹에서 실행하세요.');return r.text();})).catch(e=>{scriptCache=null;throw e;});return scriptCache;}
   function sanitizeSource(source){
     // Inert parsing; never attach the source DOM to the host document.
     const parsePolicy="<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; base-uri 'none'; form-action 'none'\">";
@@ -139,11 +141,12 @@
   }
   async function runSource(source,mode='source'){
     if(!source.trim())throw new Error('검사할 HTML을 입력하세요.');if(new Blob([source]).size>CFG.maxInputBytes)throw new Error('HTML 입력은 2 MB 이하로 제한합니다.');
+    if(pendingRefresh)pendingRefresh.reject(new Error('새 워크스페이스를 열어 이전 재검사를 취소했습니다.'));
     const scripts=await getScripts(),{parsed,removed}=sanitizeSource(source),channel=uuid(),nonce=uuid().replace(/-/g,'');previewChannel=channel;previewReportId=null;previewRecording=false;
     $('record-preview').textContent='초점 기록 시작';$('preview-card').hidden=false;$('preview').style.width=$('viewport-width').value+'px';
     const policy=`default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; img-src data:; media-src 'none'; connect-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none';`;
     const meta=parsed.createElement('meta');meta.httpEquiv='Content-Security-Policy';meta.content=policy;parsed.head.prepend(meta);
-    const setup=`\n(async function(){const channel=${JSON.stringify(channel)};let busy=false;const send=(type,payload)=>parent.postMessage({channel,type,payload},'*');document.addEventListener('submit',e=>e.preventDefault(),true);document.addEventListener('click',e=>{const a=e.target.closest?.('a');if(a&&!String(a.getAttribute('href')).startsWith('#'))e.preventDefault();},true);window.addEventListener('message',e=>{if(e.source!==parent||e.data?.channel!==channel)return;const d=e.data;if(d.type==='start'){StudioFocus.start(()=>send('focus',StudioFocus.report()));send('started',null);}if(d.type==='stop'){send('focus',StudioFocus.stop());send('stopped',null);}if(d.type==='locate'){let el;try{el=StudioEvidence.originalNode(d.selector);}catch(error){send('error',error.message);return;}if(el){el.scrollIntoView({block:'center'});el.animate?.([{outline:'3px solid #bd2727',outlineOffset:'4px'},{outline:'3px solid #bd2727',outlineOffset:'4px'}],{duration:1800});send('located',d.selector);}}});try{const result=await StudioAudit.run(document,{mode:${JSON.stringify(mode)},state:'격리된 HTML 미리보기'});result.limitations.push(${JSON.stringify('원본 스크립트·외부 리소스를 차단한 HTML 검사입니다. 제거한 실행·외부 연결 항목 '+removed+'개. 실사이트와 레이아웃·동작이 다를 수 있습니다.')});send('report',result);}catch(e){send('error',String(e.message));}})();`;
+    const setup=`\nStudioPreview.connect({channel:${JSON.stringify(channel)},mode:${JSON.stringify(mode)},limitation:${JSON.stringify('원본 스크립트·외부 리소스를 차단한 HTML 검사입니다. 제거한 실행·외부 연결 항목 '+removed+'개. 실사이트와 레이아웃·동작이 다를 수 있습니다.')}});`;
     const trusted=parsed.createElement('script');trusted.setAttribute('nonce',nonce);trusted.textContent=scripts.join('\n')+setup;parsed.body.append(trusted);
     // outerHTML escapes script text inconsistently, so protect every closing script token in trusted code.
     const html='<!doctype html>'+parsed.documentElement.outerHTML;
@@ -154,9 +157,15 @@
   }
   window.addEventListener('message',e=>{
     if(e.source!==$('preview').contentWindow||e.data?.channel!==previewChannel)return;
-    const {type,payload}=e.data;
-    if(type==='report'){try{previewReportId=payload.id;loadReport(payload);}catch(err){toast(err.message);}}
-    if(type==='error')toast('검사 실패: '+payload);
+    const {type,payload,requestId}=e.data;
+    if(requestId&&(!pendingRefresh||pendingRefresh.id!==requestId))return;
+    if(type==='report'){
+      if(requestId&&report?.id!==pendingRefresh.reportId){pendingRefresh.reject(new Error('다른 보고서가 열려 재검사 결과를 적용하지 않았습니다.'));return;}
+      try{previewReportId=payload.id;loadReport(payload);if(requestId)pendingRefresh.resolve(report);}catch(err){if(requestId)pendingRefresh.reject(err);else toast(err.message);}
+    }
+    if(type==='playback'&&payload?.started){previewRecording=false;$('record-preview').textContent='초점 기록 시작';}
+    if(type==='playback'&&report?.id===previewReportId)window.dispatchEvent(new CustomEvent('studio:playback',{detail:payload}));
+    if(type==='error'){if(requestId)pendingRefresh.reject(new Error(payload));else toast('검사 실패: '+payload);}
     if(type==='focus'&&report&&report.id===previewReportId){report.focus=payload;persist();renderStats();renderFocus();$('preview-note').textContent=`실제 초점 이벤트 ${payload.events?.length||0}개 기록. 완료 후 중지하고 초점 · 레이아웃에서 확인하세요.`;}
     if(type==='started'){previewRecording=true;$('record-preview').textContent='초점 기록 중지';toast('미리보기 안을 선택한 뒤 Tab / Shift+Tab으로 이동하세요.');}
     if(type==='stopped'){previewRecording=false;$('record-preview').textContent='초점 기록 시작';location.hash='focus';}
@@ -173,8 +182,29 @@
   $('export-json').addEventListener('click',()=>{if(report)download(JSON.stringify(report,null,2),'application/json','accessibility-report-'+report.id.slice(0,8)+'.json');});
   $('export-html').addEventListener('click',()=>{if(report)download(reportHTML(),'text/html','accessibility-report.html');});
   $('reviewer').addEventListener('input',()=>{ensureReport();report.reviewer=$('reviewer').value;persist();renderStats();});
-  $('clear-session').addEventListener('click',()=>{try{sessionStorage.removeItem('a11y-studio-report');}catch{}report=null;renderAll();location.hash='inspect';toast('이 페이지의 보고서를 지웠습니다.');});
-  window.StudioApp=Object.freeze({loadReport,getReport:()=>report,save:persist,validateReport,reportHTML,showView,runSource});
+  $('clear-session').addEventListener('click',()=>{try{sessionStorage.removeItem('a11y-studio-report');}catch{}report=null;renderAll();window.dispatchEvent(new Event('studio:report'));location.hash='inspect';toast('이 페이지의 보고서를 지웠습니다.');});
+  async function refreshReport(){
+    if(!report)throw new Error('먼저 검사를 실행하세요.');
+    const previousId=report.id;
+    if(window.chrome?.runtime?.id&&report.sourceTab){
+      const result=await chrome.runtime.sendMessage({action:'refresh-report',sourceTab:report.sourceTab,reportId:report.id,state:report.page.state});
+      if(!result?.ok)throw new Error(result?.error||'원본 탭의 응답이 없습니다.');
+      if(report?.id!==previousId)throw new Error('다른 보고서가 열려 재검사 결과를 적용하지 않았습니다.');
+      loadReport(result.report);return report;
+    }
+    if(!previewChannel||previewReportId!==report.id)throw new Error('현재 DOM에 연결되지 않은 보고서입니다. 원본 사이트의 확장에서 다시 검사하거나 HTML 검사로 새 워크스페이스를 여세요. 저장된 마크업으로 대신 검사하지 않습니다.');
+    if(pendingRefresh)throw new Error('이미 새로고침 중입니다.');
+    return new Promise((resolve,reject)=>{
+      const id=uuid(),finish=fn=>value=>{if(pendingRefresh?.id===id){clearTimeout(pendingRefresh.timer);pendingRefresh=null;}fn(value);};
+      pendingRefresh={id,reportId:previousId,resolve:finish(resolve),reject:finish(reject),timer:setTimeout(()=>{pendingRefresh?.reject(new Error('현재 DOM 재검사 응답이 없습니다. 기존 결과를 유지합니다.'));},45000)};
+      previewRecording=false;$('record-preview').textContent='초점 기록 시작';
+      $('preview').contentWindow.postMessage({channel:previewChannel,type:'refresh',requestId:id},'*');
+    });
+  }
+  function updateFocus(focus,id){if(report?.id!==id)return;report.focus=focus;persist();renderStats();renderFocus();}
+  window.StudioApp=Object.freeze({loadReport,getReport:()=>report,save:persist,validateReport,reportHTML,showView,runSource,refreshReport,updateFocus,toast,
+    getPreview:()=>({channel:previewChannel,reportId:previewReportId}),
+    sendPreview:message=>{if(previewChannel&&report?.id===previewReportId)$('preview').contentWindow.postMessage({channel:previewChannel,...message},'*');}});
   try{const saved=sessionStorage.getItem('a11y-studio-report');if(saved)report=validateReport(JSON.parse(saved));}catch{try{sessionStorage.removeItem('a11y-studio-report');}catch{}}
   renderAll();showView(location.hash.slice(1));
 })();

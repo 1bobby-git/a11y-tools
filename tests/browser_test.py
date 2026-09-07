@@ -41,7 +41,7 @@ def load_app(browser):
     html = re.sub(r'<link\b[^>]*rel="stylesheet"[^>]*>', '', html)
     page.set_content(html)
     page.add_style_tag(content=(PUBLIC / 'assets/style.css').read_text(encoding='utf-8')+(PUBLIC / 'assets/evidence.css').read_text(encoding='utf-8'))
-    resources = {f'assets/{f}': (PUBLIC / 'assets' / f).read_text(encoding='utf-8') for f in ['core.js', 'evidence.js', 'focus.js', 'vendor-axe.js']}
+    resources = {f'assets/{f}': (PUBLIC / 'assets' / f).read_text(encoding='utf-8') for f in ['core.js', 'evidence.js', 'focus.js', 'vendor-axe.js', 'player.js', 'preview-runtime.js']}
     resources['demo.html'] = (PUBLIC / 'demo.html').read_text(encoding='utf-8')
     page.evaluate('''resources => { window.fetch = async path => {
       if (!(path in resources)) throw new Error('Unexpected external request: ' + path);
