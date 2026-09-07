@@ -11,6 +11,8 @@ if(hasAxe){
   await fs.copyFile(upstream,path.join(pub,'assets/vendor-axe.js'));
   await fs.mkdir(path.join(pub,'licenses'),{recursive:true});
   await fs.copyFile(path.join(root,'node_modules/axe-core/LICENSE'),path.join(pub,'licenses/axe-core-LICENSE.txt'));
+  const thirdParty=path.join(root,'node_modules/axe-core/LICENSE-3RD-PARTY.txt');
+  if(await exists(thirdParty))await fs.copyFile(thirdParty,path.join(pub,'licenses/axe-core-LICENSE-3RD-PARTY.txt'));
 }
 if(await exists(path.join(root,'LICENSE')))await fs.copyFile(path.join(root,'LICENSE'),path.join(ext,'LICENSE'));
 await fs.cp(path.join(pub,'assets'),path.join(ext,'assets'),{recursive:true});
