@@ -1,0 +1,21 @@
+node_modules/
+.playwright/
+__pycache__/
+test-results/
+*.log
+.DS_Store
+.env*
+reports/
+accessibility-report*.json
+accessibility-report*.html
+tests/artifacts/
+
+# Rebuilt from public/ and extension/ source in CI
+docs/
+public/downloads/
+public/licenses/
+extension/assets/
+extension/report.html
+extension/demo.html
+extension/LICENSE
+extension/licenses/
