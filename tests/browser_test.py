@@ -25,7 +25,7 @@ def inject(page, files):
 def fixture(browser, html):
     page = browser.new_page(viewport={'width': 1000, 'height': 800})
     page.set_content(html)
-    inject(page, ['core.js', 'focus.js'])
+    inject(page, ['core.js', 'evidence.js', 'focus.js'])
     return page
 
 def run(page):
@@ -40,14 +40,14 @@ def load_app(browser):
     html = re.sub(r'<script\b[^>]*src="[^"]+"[^>]*></script>', '', html)
     html = re.sub(r'<link\b[^>]*rel="stylesheet"[^>]*>', '', html)
     page.set_content(html)
-    page.add_style_tag(content=(PUBLIC / 'assets/style.css').read_text(encoding='utf-8'))
-    resources = {f'assets/{f}': (PUBLIC / 'assets' / f).read_text(encoding='utf-8') for f in ['core.js', 'focus.js', 'vendor-axe.js']}
+    page.add_style_tag(content=(PUBLIC / 'assets/style.css').read_text(encoding='utf-8')+(PUBLIC / 'assets/evidence.css').read_text(encoding='utf-8'))
+    resources = {f'assets/{f}': (PUBLIC / 'assets' / f).read_text(encoding='utf-8') for f in ['core.js', 'evidence.js', 'focus.js', 'vendor-axe.js']}
     resources['demo.html'] = (PUBLIC / 'demo.html').read_text(encoding='utf-8')
     page.evaluate('''resources => { window.fetch = async path => {
       if (!(path in resources)) throw new Error('Unexpected external request: ' + path);
       return new Response(resources[path], {status: 200});
     }; }''', resources)
-    inject(page, ['config.js', 'standards.js', 'core.js', 'focus.js', 'app.js'])
+    inject(page, ['config.js', 'standards.js', 'core.js', 'evidence.js', 'evidence-ui.js', 'focus.js', 'app.js'])
     return page
 
 with sync_playwright() as p:

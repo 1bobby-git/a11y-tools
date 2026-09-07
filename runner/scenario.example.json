@@ -1,0 +1,8 @@
+[
+  {"command": "nextHeading", "expected": "페이지의 실제 첫 제목으로 변경"},
+  {"command": "next"},
+  {"command": "nextLink"},
+  {"command": "Tab"},
+  {"command": "Shift+Tab"},
+  {"command": "previous"}
+]

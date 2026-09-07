@@ -1,0 +1,15 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import {validateScenario,assertion,compareLayout,captureStep} from '../runner/model.mjs';
+const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
+test('new browser scripts parse',()=>{for(const p of ['public/assets/evidence.js','public/assets/evidence-ui.js'])assert.doesNotThrow(()=>new vm.Script(read(p)));});
+test('every runtime injects evidence before running the audit',()=>{assert.match(read('public/assets/app.js'),/\['core.js','evidence.js','focus.js','vendor-axe.js'\]/);assert.match(read('extension/background.js'),/assets\/evidence.js/);assert.match(read('public/index.html'),/assets\/evidence-ui.js/);});
+test('evidence replaces legacy HTML omissions with resolved DOM or an explicit missing-node state',()=>{assert.match(read('public/assets/evidence.js'),/f\.nodes=els\.map\(nodeEvidence\)/);assert.match(read('public/assets/evidence.js'),/f\.html=redactHTML\(f\.html\)/);assert.match(read('public/assets/evidence.js'),/f\.evidenceUnavailable=true/);});
+test('screen-reader scenarios cannot invoke arbitrary commands',()=>{assert.throws(()=>validateScenario([{command:'type',text:'anything'}]));assert.throws(()=>validateScenario([{command:'act'}]));assert.throws(()=>validateScenario([]));assert.equal(validateScenario([{command:'Tab'}])[0].command,'Tab');});
+test('expected speech assertions are bounded observations not fabricated passes',()=>{assert.equal(assertion('검색',['검색 버튼']).status,'pass');assert.equal(assertion('검색',[]).status,'fail');assert.equal(assertion(undefined,['검색 버튼']).status,'not-asserted');});
+test('layout differences retain exact selectors and changes',()=>{const b={elements:[{selector:'#a',x:0,y:0,width:20,height:20}]},a={elements:[{selector:'#a',x:0,y:0,width:120,height:25}]};assert.deepEqual(compareLayout(b,a),[{selector:'#a',dx:0,dy:0,dw:100,dh:5}]);});
+test('reader adapter preserves driver speech and clears stale output',async()=>{const calls=[];const fake={clearSpokenPhraseLog:async()=>calls.push('clear'),next:async options=>calls.push(options.capture),spokenPhraseLog:async()=>['실제 드라이버 반환값']};const result=await captureStep(fake,{command:'next',expected:'반환값'});assert.deepEqual(calls,['clear',true]);assert.deepEqual(result.speech,['실제 드라이버 반환값']);assert.equal(result.assertion.status,'pass');});
+test('reader adapter fails instead of inventing speech',async()=>{await assert.rejects(captureStep({clearSpokenPhraseLog:async()=>{},next:async()=>{},spokenPhraseLog:async()=>null},{command:'next'}));});
+test('all generated copies include the evidence renderer',()=>{for(const p of ['evidence.js','evidence-ui.js','evidence.css']){assert.equal(read('public/assets/'+p),read('extension/assets/'+p));assert.equal(read('public/assets/'+p),read('docs/assets/'+p));}});

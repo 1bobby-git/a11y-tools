@@ -8,7 +8,7 @@ async function tabOrThrow(tabId){
   return tab;
 }
 async function inject(tabId){
-  await chrome.scripting.executeScript({target:{tabId},files:['assets/vendor-axe.js','assets/core.js','assets/focus.js']});
+  await chrome.scripting.executeScript({target:{tabId},files:['assets/vendor-axe.js','assets/core.js','assets/evidence.js','assets/focus.js']});
 }
 async function audit(tabId,state){
   await tabOrThrow(tabId);await inject(tabId);
@@ -16,6 +16,9 @@ async function audit(tabId,state){
     return globalThis.StudioAudit.run(document,{mode:'live',state:label||'현재 화면'});
   },args:[String(state||'').slice(0,120)]});
   const report=results[0]?.result;if(!report)throw new Error('검사 결과가 없습니다. 새로고침 후 다시 실행하세요.');
+  const scanId=crypto.randomUUID();
+  await chrome.scripting.executeScript({target:{tabId},func:id=>{globalThis.__studioScanId=id;},args:[scanId]});
+  const tab=await tabOrThrow(tabId);report.sourceTab={tabId,windowId:tab.windowId,scanId};
   return report;
 }
 async function saveReport(report){await chrome.storage.local.set({latestReport:report});}
@@ -34,6 +37,7 @@ async function handle(message,sender){
   // Only extension pages initiate control operations. Page content can only report focus.
   if(sender.tab || !sender.url?.startsWith(chrome.runtime.getURL('')))throw new Error('지원하지 않는 요청 출처입니다.');
   const {action,tabId,state}=message;
+  if(action==='locate-evidence'||action==='capture-evidence')return evidenceAction(message);
   if(action==='audit'){
     const report=await audit(tabId,state);await saveReport(report);await openReport();return {ok:true,message:`검사 완료: ${report.findings.length}건. 보고서 탭을 확인하세요.`};
   }
@@ -74,3 +78,42 @@ async function handle(message,sender){
 chrome.runtime.onMessage.addListener((message,sender,sendResponse)=>{
   serial(()=>handle(message,sender)).then(sendResponse,e=>sendResponse({ok:false,error:e.message||String(e)}));return true;
 });
+
+async function evidenceAction(message){
+  const source=message.sourceTab;
+  if(!source||!Number.isInteger(source.tabId)||typeof source.scanId!=='string')throw new Error('원본 탭 정보가 없습니다. 다시 검사하세요.');
+  await tabOrThrow(source.tabId);
+  const tab=await chrome.tabs.get(source.tabId);
+  await chrome.windows.update(tab.windowId,{focused:true});await chrome.tabs.update(tab.id,{active:true});
+  const prepare=await chrome.scripting.executeScript({target:{tabId:tab.id},func:async(id,path,capture)=>{
+    if(globalThis.__studioScanId!==id)throw new Error('페이지가 변경되었거나 새 검사가 실행되었습니다. 다시 검사하세요.');
+    const el=StudioEvidence.originalNode(path);if(!el||!el.isConnected)throw new Error('대상 요소가 사라졌습니다. 다시 검사하세요.');
+    if(!el.getClientRects().length)throw new Error('숨겨진 요소는 원본 화면에서 캡처할 수 없습니다. 마크업을 확인하세요.');
+    el.scrollIntoView({block:'center',inline:'nearest'});
+    await new Promise(resolve=>setTimeout(resolve,180));
+    const r=StudioAudit.rect(el),w=innerWidth,h=innerHeight;
+    if(!capture)el.animate?.([{outline:'3px solid #bd2727',outlineOffset:'4px'},{outline:'3px solid #bd2727',outlineOffset:'4px'}],{duration:1800});
+    const masks=StudioEvidence.roots(document).flatMap(root=>Array.from(root.querySelectorAll('input,textarea,select,[contenteditable]'))).map(n=>StudioAudit.rect(n));
+    return {rect:r,width:w,height:h,masks};
+  },args:[source.scanId,String(message.selector),message.action==='capture-evidence']});
+  const data=prepare[0]?.result;if(!data)throw new Error('대상 위치를 읽지 못했습니다.');
+  if(message.action==='locate-evidence')return {ok:true};
+  const [active]=await chrome.tabs.query({windowId:tab.windowId,active:true});
+  if(active?.id!==tab.id)throw new Error('활성 탭이 변경되어 캡처를 취소했습니다.');
+  const url=await chrome.tabs.captureVisibleTab(tab.windowId,{format:'png'});
+  // Crop before returning: the complete viewport is never saved in the report.
+  const [afterCapture]=await chrome.tabs.query({windowId:tab.windowId,active:true});
+  if(afterCapture?.id!==tab.id)throw new Error('캡처 도중 탭이 변경되어 결과를 버렸습니다.');
+  const bitmap=await createImageBitmap(await (await fetch(url)).blob());
+  const sx=bitmap.width/data.width,sy=bitmap.height/data.height,pad=12,r=data.rect;
+  const x=Math.max(0,r.x-pad),y=Math.max(0,r.y-pad),right=Math.min(data.width,r.right+pad),bottom=Math.min(data.height,r.bottom+pad);
+  if(right<=x||bottom<=y){bitmap.close();throw new Error('대상이 현재 화면 밖에 있습니다.');}
+  const canvas=new OffscreenCanvas(Math.max(1,Math.round((right-x)*sx)),Math.max(1,Math.round((bottom-y)*sy))),ctx=canvas.getContext('2d');
+  ctx.drawImage(bitmap,x*sx,y*sy,(right-x)*sx,(bottom-y)*sy,0,0,canvas.width,canvas.height);bitmap.close();
+  ctx.fillStyle='#59636a';for(const m of data.masks){ctx.fillRect((m.x-x)*sx,(m.y-y)*sy,m.width*sx,m.height*sy);}
+  ctx.strokeStyle='#bd2727';ctx.lineWidth=Math.max(2,2*sx);ctx.strokeRect((r.x-x)*sx,(r.y-y)*sy,r.width*sx,r.height*sy);
+  const bytes=new Uint8Array(await (await canvas.convertToBlob({type:'image/png'})).arrayBuffer());
+  if(bytes.length>3500000)throw new Error('캡처가 너무 큽니다. 대상 영역을 줄여 다시 시도하세요.');
+  let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+  return {ok:true,screenshot:{dataUrl:'data:image/png;base64,'+btoa(binary),capturedAt:new Date().toISOString(),kind:'live-cropped',note:'화면에 보이는 부분만 캡처. 입력 필드 가림. 화면 텍스트는 별도 검토 필요.'}};
+}
