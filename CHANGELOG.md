@@ -1,3 +1,8 @@
+# v0.3.1 — 2026-09-08
+
+- `visibility: hidden` 부모 안에서 `visibility: visible`로 표시한 버튼을 자동 초점 재생 후보에서 누락하지 않도록 수정.
+- 숨겨진 요소·`display: none`·`inert` 제외는 유지하고 실제 Chromium Tab 이동과 비교하는 회귀 검사 추가.
+
 # v0.3.0 — 2026-09-07
 
 - 결과 화면에서 현재 원본 document를 새로 검사. 저장 마크업·axe 결과 재활용과 강제 페이지 reload 없음.

@@ -1,8 +1,8 @@
 {
   "name": "a11y-tools",
-  "version": "0.1.0",
+  "version": "0.3.1",
   "sha": null,
   "repository": "1bobby-git/a11y-tools",
-  "axeBundled": false,
-  "builtAt": "2026-09-07T05:48:40.415Z"
+  "axeBundled": true,
+  "builtAt": "2026-09-08T00:20:31.752Z"
 }

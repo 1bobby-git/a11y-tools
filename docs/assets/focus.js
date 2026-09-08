@@ -4,8 +4,10 @@
  */
 (function(g){
   'use strict';
-  if(g.StudioFocus?.version === '0.1.0') return;
+  if(g.StudioFocus?.version === '0.3.0') return;
+  g.StudioFocus?.stop();
   let active=false, events=[], shifts=[], onEvent=null, observer=null, lastKey=null, pending=null;
+  let programmatic=false;
   let sequence=0, timers=new Set(), startTime=0;
   const A=()=>g.StudioAudit;
   const round=n=>Math.round(n*10)/10;
@@ -22,7 +24,7 @@
   }
   function keydown(e){
     if(!active||e.key!=='Tab')return;
-    lastKey={key:e.shiftKey?'Shift+Tab':'Tab',time:performance.now()};
+    programmatic=false;lastKey={key:e.shiftKey?'Shift+Tab':'Tab',time:performance.now()};
     pending=snapshot(deepest(document.activeElement));
   }
   function obscured(el,r){
@@ -44,11 +46,11 @@
     const before=pending||snapshot(target);pending=null;
     const seq=++sequence, when=performance.now();
     const record={sequence:seq,at:new Date().toISOString(),elapsedMs:Math.round(when-startTime),
-      via:lastKey&&when-lastKey.time<1000?lastKey.key:'DOM focus (원인 미확정)',
+      via:programmatic?'자동 재생 (.focus())':lastKey&&when-lastKey.time<1000?lastKey.key:'DOM focus (원인 미확정)',
       selector:A().selector(target),name:A().name(target),tag:target.tagName.toLowerCase(),
       html:A().snippet(target),url:A().cleanURL(location.href),before:{scrollX:before.x,scrollY:before.y,documentWidth:before.width,viewportWidth:before.viewport},
       samples:[],flags:[]};
-    events.push(record);
+    programmatic=false;events.push(record);
     if(events.length>500) {events.shift();record.flags.push('기록 500건 한도로 이전 항목 생략');}
     function sample(delay){
       const t=setTimeout(()=>{
@@ -87,7 +89,7 @@
     onEvent?.(structuredClone(record));
   }
   function start(callback){
-    stop();events=[];shifts=[];sequence=0;startTime=performance.now();lastKey=null;pending=null;onEvent=callback||null;active=true;
+    stop();events=[];shifts=[];sequence=0;startTime=performance.now();lastKey=null;pending=null;programmatic=false;onEvent=callback||null;active=true;
     document.addEventListener('keydown',keydown,true);document.addEventListener('focusin',focusin,true);
     try{
       observer=new PerformanceObserver(list=>{for(const entry of list.getEntries()){
@@ -107,5 +109,7 @@
     document.removeEventListener('keydown',keydown,true);document.removeEventListener('focusin',focusin,true);
     observer?.disconnect();observer=null;onEvent=null;result.active=false;return result;
   }
-  g.StudioFocus=Object.freeze({version:'0.1.0',start,stop,report});
+  function prepareProgrammaticFocus(){if(active){pending=snapshot(deepest(document.activeElement));lastKey=null;programmatic=true;}}
+  function cancelPreparedFocus(){pending=null;programmatic=false;}
+  g.StudioFocus=Object.freeze({version:'0.3.0',start,stop,report,prepareProgrammaticFocus,cancelPreparedFocus});
 })(globalThis);
