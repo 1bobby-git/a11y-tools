@@ -19,12 +19,19 @@
   };
   function parent(el) { return el.parentElement || el.getRootNode?.().host || null; }
   function isHidden(el) {
+    // `visibility` is inherited but a descendant can override an inherited
+    // `hidden`/`collapse` with `visible`, so read the element's own computed
+    // value once (it already resolves inheritance) instead of failing on any
+    // ancestor. `display:none` is not inherited, so it is still checked up the
+    // ancestor chain; attribute-based hiding is not overridable by descendants.
+    const view = el.nodeType === 1 ? el.ownerDocument.defaultView : null;
+    if (view) {
+      const own = view.getComputedStyle(el).visibility;
+      if (own === 'hidden' || own === 'collapse') return true;
+    }
     for (let n = el; n && n.nodeType === 1; n = parent(n)) {
       if (n.hidden || n.hasAttribute('inert') || n.getAttribute('aria-hidden') === 'true') return true;
-      if (n.ownerDocument.defaultView) {
-        const s = n.ownerDocument.defaultView.getComputedStyle(n);
-        if (s.display === 'none' || s.visibility === 'hidden' || s.visibility === 'collapse') return true;
-      }
+      if (n.ownerDocument.defaultView && n.ownerDocument.defaultView.getComputedStyle(n).display === 'none') return true;
     }
     return false;
   }
