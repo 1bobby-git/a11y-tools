@@ -1,3 +1,9 @@
+# v0.3.2 — 2026-09-30
+
+- 검사 엔진의 숨김 판정(`isHidden`)에서 `visibility: hidden` 부모 안의 `visibility: visible` 자식을 더 이상 숨김으로 처리하지 않도록 수정. 이미지 대체 콘텐츠·컨트롤 이름·제목 구조·랜드마크·초점 후보 검사가 실제로 보이는 요소를 누락하지 않습니다. `display: none`·`inert`·`hidden`·`aria-hidden` 조상 판정은 유지합니다.
+- DOM 없이 실행되는 회귀 검사 추가(`tests/visibility.test.mjs`).
+- 화면·구성 파일에 남아 있던 이전 버전 표기(앱 버전 상수·머리말·바닥글·초점/재생/미리보기 버전)를 실제 릴리스 버전으로 정렬.
+
 # v0.3.1 — 2026-09-08
 
 - `visibility: hidden` 부모 안에서 `visibility: visible`로 표시한 버튼을 자동 초점 재생 후보에서 누락하지 않도록 수정.

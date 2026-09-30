@@ -1,7 +1,7 @@
 /* Live DOM focus rehearsal, not synthetic Tab or a screen-reader emulator. */
 (function(g){
 'use strict';
-if(g.StudioPlayer?.version==='0.3.1')return;
+if(g.StudioPlayer?.version==='0.3.2')return;
 g.StudioPlayer?.stop();
 const A=()=>g.StudioAudit,F=()=>g.StudioFocus;
 let timer=null,running=false,started=false,current=null,index=-1,interval=1200,loop=false,steps=0,revision=0;
@@ -87,5 +87,5 @@ document.addEventListener('keydown',e=>{if(e.isTrusted&&running)pause(e.key==='E
 document.addEventListener('pointerdown',e=>{if(e.isTrusted&&running)pause('직접 조작으로 일시정지');},true);
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&running)pause('대상 화면이 보이지 않아 일시정지');});
 g.addEventListener('pagehide',()=>stop('페이지를 떠나 재생 중지'));
-g.StudioPlayer=Object.freeze({version:'0.3.1',candidates,state,play,pause,stop,command,configure,subscribe:fn=>{notify=typeof fn==='function'?fn:()=>{};}});
+g.StudioPlayer=Object.freeze({version:'0.3.2',candidates,state,play,pause,stop,command,configure,subscribe:fn=>{notify=typeof fn==='function'?fn:()=>{};}});
 })(globalThis);
