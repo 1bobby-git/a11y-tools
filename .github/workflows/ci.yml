@@ -1,0 +1,53 @@
+name: CI
+
+# Pull-request checks only. Deployment stays in pages.yml (push to main).
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: Build and static tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install the pinned accessibility engine
+        run: npm ci --ignore-scripts --no-fund --no-audit
+      - name: Build site and extension (axe-core is required)
+        run: node scripts/build.mjs --require-axe
+      - name: Committed generated copies match the sources
+        run: git diff --exit-code -- public/assets public/licenses docs/assets docs/licenses docs/index.html docs/demo.html extension/assets extension/licenses extension/LICENSE extension/report.html extension/demo.html
+      - name: Run static tests
+        run: npm test
+
+  browser:
+    name: Browser regression tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Playwright and its Chromium
+        run: |
+          python -m pip install --disable-pip-version-check playwright==1.63.0
+          python -m playwright install --with-deps chromium
+          echo "CHROMIUM_PATH=$(python -c 'from playwright.sync_api import sync_playwright; p = sync_playwright().start(); print(p.chromium.executable_path); p.stop()')" >> "$GITHUB_ENV"
+      - name: Run browser regression tests
+        run: |
+          python tests/browser_test.py
+          python tests/evidence_browser_test.py
+          python tests/workspace_browser_test.py
+          python tests/rules_browser_test.py

@@ -1,3 +1,16 @@
+# v0.3.3 — 2026-10-31
+
+- 기본 규칙 결과가 실제로 실패한 요소를 가리키도록 수정. 선택자를 7단계에서 자르거나 중복 id 조상에서 멈춰, 깊은 DOM이나 중복 id 아래의 오류가 통과한 비슷한 요소(첫 번째 대상·원본 위치 표시·캡처)로 연결되던 문제입니다. 이제 트리 루트까지의 고유 경로를 사용합니다.
+- 사용자 정의 조작 요소(`custom-keyboard`): 태그 이름 검사가 SPAN·LABEL처럼 A가 들어간 태그와 href 없는 `<a>`를 기본 컨트롤로 오인해 `<span onclick>`·`<span role="button">`·href 없는 `<a onclick>`을 놓치던 문제 수정.
+- 프레임 제목(`frame-title`): `display:none`·`hidden`·`aria-hidden` iframe은 오류에서 제외하고, `aria-label`·`aria-labelledby`로만 이름을 준 iframe은 자동 오류 대신 검토 필요로 표시. iframe 안의 대체 문구는 제목으로 보지 않습니다. aria-hidden 영역 안에서도 Tab이 닿는 iframe은 아래 `hidden-focus`로 보고합니다.
+- 숨김 영역의 초점 후보(`hidden-focus`): 닫힌 모달(`display:none`)처럼 Tab이 실제로 닿지 않는 요소(미표시·`visibility:hidden`·inert·disabled·`type="hidden"`)는 제외. 후보는 초점 목록과 같은 기준(iframe·summary·편집 영역·미디어 컨트롤 포함)으로 찾아, 캐러셀의 aria-hidden 슬라이드 속 영상 iframe처럼 Tab이 닿는 요소를 놓치지 않습니다.
+- 이름 계산: select·textarea·편집 영역·`role="img"`·SVG·iframe·랜드마크는 내용으로 이름을 만들지 않습니다(WAI-ARIA). 레이블 없는 select·textarea를 검토 필요로, `<div role="img">텍스트</div>`와 `<text>`만 있는 SVG를 대체 이름 없음으로 표시합니다. 아이콘의 `aria-label`은 버튼 이름에 반영합니다. 편집 영역이거나 편집 영역 안에 있는 제목은 내용 대신 작성자가 준 이름(`aria-label` 등)만 쓰고 빈 제목으로 보고하지 않으며, `aria-labelledby`는 참조한 폼 필드·편집 영역의 내용을 읽지 않고, 편집 영역 안 요소의 결과 마크업 증거는 내용을 가립니다. 따라서 textarea 기본 내용과 contenteditable 입력 내용이 이름·인벤토리(제목 포함)·결과 마크업·초점 기록에 들어가지 않습니다.
+- 제목 구조: `aria-level`이 없는 `role="heading"`을 2수준으로 처리해 다음 제목의 수준 건너뜀을 놓치지 않습니다.
+- HTML 워크스페이스: 미리보기가 화면 밖에 있으면 Chromium이 애니메이션 프레임을 멈춰 검사가 끝나지 않던 문제 수정(최대 0.5초 대기 후 진행).
+- 보고서 비교: 기본 규칙 엔진 버전(`engine.builtin`)이 다르면 "같은 조건"으로 표시하지 않습니다. 규칙 변경으로 생긴 차이를 개선·악화로 오해하지 않도록 합니다.
+- 테스트·CI: 규칙 회귀 테스트(`tests/rules_browser_test.py`) 추가, 브라우저 테스트가 Windows·CI에서도 실행되도록 Chromium 경로·인코딩 정리, 번들된 axe 실행을 반영하도록 오래된 검사 수정, PR용 CI 워크플로(빌드·정적·브라우저 테스트, 배포 없음) 추가.
+- 기본 규칙 엔진 버전을 0.3.3으로 올려, 이미 검사한 탭에서 다시 검사할 때 새 규칙이 적용되도록 했습니다.
+
 # v0.3.2 — 2026-09-30
 
 - 검사 엔진의 숨김 판정(`isHidden`)에서 `visibility: hidden` 부모 안의 `visibility: visible` 자식을 더 이상 숨김으로 처리하지 않도록 수정. 이미지 대체 콘텐츠·컨트롤 이름·제목 구조·랜드마크·초점 후보 검사가 실제로 보이는 요소를 누락하지 않습니다. `display: none`·`inert`·`hidden`·`aria-hidden` 조상 판정은 유지합니다.

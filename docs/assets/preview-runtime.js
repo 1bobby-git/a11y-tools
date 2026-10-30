@@ -10,10 +10,12 @@ g.StudioPreview=Object.freeze({connect({channel,mode,limitation}){
     try{
       StudioPlayer.stop('현재 DOM 재검사');StudioFocus.stop();
       if(document.readyState==='loading')await new Promise(resolve=>document.addEventListener('DOMContentLoaded',resolve,{once:true}));
-      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      // Wait for a rendered frame, but never depend on it: Chromium pauses animation frames in
+      // off-screen cross-origin (sandboxed) frames, which used to stall the audit until scrolled into view.
+      await new Promise(resolve=>{const timer=setTimeout(resolve,500);requestAnimationFrame(()=>requestAnimationFrame(()=>{clearTimeout(timer);resolve();}));});
       if(!innerWidth||!innerHeight)throw new Error('워크스페이스가 보이지 않아 검사하지 않았습니다. 화면을 표시하고 다시 실행하세요.');
       const result=await StudioAudit.run(document,{mode,state:'격리된 HTML 워크스페이스의 현재 DOM'});
-      result.version='0.3.2';result.limitations.push(limitation);
+      result.version='0.3.3';result.limitations.push(limitation);
       result.refresh={basis:'live-dom',refreshedAt:result.createdAt,reloaded:false};
       send('report',result,requestId);
     }catch(e){send('error',e.message||String(e),requestId);}finally{busy=false;}

@@ -1,6 +1,6 @@
 {
   "environment": "Chromium / offline in-memory assets; URL navigation is blocked by execution-environment policy",
-  "axeCore": "NOT bundled or executed in this environment",
+  "axeCore": "bundled axe-core 4.13.0 executed in the demo workspace",
   "extensionLiveBrowser": "not executed as installed extension",
   "passed": 45,
   "tests": [
@@ -137,7 +137,7 @@
       "status": "passed"
     },
     {
-      "test": "axe placeholder does not claim axe execution",
+      "test": "report scope states the axe engine truthfully",
       "status": "passed"
     },
     {

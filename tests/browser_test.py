@@ -103,7 +103,7 @@ with sync_playwright() as p:
     page.keyboard.press('Tab')
     page.wait_for_timeout(200)
     check('stop removes focus recording listeners', len(page.evaluate('StudioFocus.report().events')) == count)
-    (ROOT / 'tests/focus-evidence.json').write_text(json.dumps(focus, ensure_ascii=False, indent=2), encoding='utf-8')
+    (ROOT / 'tests/focus-evidence.json').write_text(json.dumps(focus, ensure_ascii=False, indent=2), encoding='utf-8', newline='\n')
     page.close()
 
     app = load_app(browser)
@@ -120,7 +120,10 @@ with sync_playwright() as p:
     app.wait_for_function('StudioApp.getReport() !== null')
     check('demo actually executes and finds issues', app.evaluate('StudioApp.getReport().findings.length') > 0)
     check('demo explicitly identified as demo', app.evaluate('StudioApp.getReport().page.mode') == 'demo')
-    check('axe placeholder does not claim axe execution', 'axe 미실행' in app.locator('#report-scope').inner_text())
+    # The bundled axe-core runs in the demo workspace; the scope must name it, or say it did not run.
+    axe_version = app.evaluate('StudioApp.getReport().engine.axe')
+    scope = app.locator('#report-scope').inner_text()
+    check('report scope states the axe engine truthfully', ('axe-core ' + axe_version in scope) if axe_version else ('axe 미실행' in scope))
     app.screenshot(path=str(ARTIFACTS / 'accessibility-studio-results.png'), full_page=True)
     app.evaluate('StudioApp.showView("manual")')
     app.locator('[id="manual-5.1.1"]').select_option('fail')
@@ -144,6 +147,6 @@ with sync_playwright() as p:
     check('no uncaught application runtime errors', not errors)
     browser.close()
 
-summary={'environment':'Chromium / offline in-memory assets; URL navigation is blocked by execution-environment policy', 'axeCore':'NOT bundled or executed in this environment', 'extensionLiveBrowser':'not executed as installed extension', 'passed':len(RESULTS), 'tests':RESULTS}
-(ROOT / 'tests/verification.json').write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf-8')
+summary={'environment':'Chromium / offline in-memory assets; URL navigation is blocked by execution-environment policy', 'axeCore':(f'bundled axe-core {axe_version} executed in the demo workspace' if axe_version else 'NOT bundled or executed in this environment'), 'extensionLiveBrowser':'not executed as installed extension', 'passed':len(RESULTS), 'tests':RESULTS}
+(ROOT / 'tests/verification.json').write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf-8', newline='\n')
 print(json.dumps({'passed':len(RESULTS)}, ensure_ascii=False))

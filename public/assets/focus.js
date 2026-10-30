@@ -4,7 +4,7 @@
  */
 (function(g){
   'use strict';
-  if(g.StudioFocus?.version === '0.3.2') return;
+  if(g.StudioFocus?.version === '0.3.3') return;
   g.StudioFocus?.stop();
   let active=false, events=[], shifts=[], onEvent=null, observer=null, lastKey=null, pending=null;
   let programmatic=false;
@@ -111,5 +111,5 @@
   }
   function prepareProgrammaticFocus(){if(active){pending=snapshot(deepest(document.activeElement));lastKey=null;programmatic=true;}}
   function cancelPreparedFocus(){pending=null;programmatic=false;}
-  g.StudioFocus=Object.freeze({version:'0.3.2',start,stop,report,prepareProgrammaticFocus,cancelPreparedFocus});
+  g.StudioFocus=Object.freeze({version:'0.3.3',start,stop,report,prepareProgrammaticFocus,cancelPreparedFocus});
 })(globalThis);

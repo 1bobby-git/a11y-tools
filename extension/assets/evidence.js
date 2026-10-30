@@ -49,6 +49,8 @@ function cloneForEvidence(el){
   }
   if(/^(TEXTAREA)$/i.test(n.tagName)||n.hasAttribute('contenteditable'))n.textContent='[입력 내용 가림]';
  }
+ // A target inside an editor (a heading or link the user typed) has no contenteditable attribute of its own.
+ if(el.isContentEditable===true)clone.textContent='[입력 내용 가림]';
  return clone;
 }
 function markup(el){if(!el?.tagName)return '';return cloneForEvidence(el).outerHTML;}
