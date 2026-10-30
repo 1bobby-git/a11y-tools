@@ -87,10 +87,17 @@
     const role = (el.getAttribute('role') || '').trim().split(/\s+/)[0].toLowerCase();
     return role ? !authorOnlyRole.test(role) : !authorOnlyTag.test(el.localName);
   }
+  // aria-labelledby reads referenced content even when it is hidden (as accname does), but
+  // never the value of a referenced form field or what was typed into a referenced editor.
+  function refText(n, depth = 0) {
+    if (!n || depth > 12 || formField(n) || n.isContentEditable === true) return '';
+    return Array.from(n.childNodes).map(c => c.nodeType === 3 ? c.textContent
+      : c.nodeType === 1 && !/^(script|style|template)$/i.test(c.tagName) ? refText(c, depth + 1) : '').join('');
+  }
   function name(el) {
     const labelled = (el.getAttribute('aria-labelledby') || '').trim();
     if (labelled) {
-      const value = labelled.split(/\s+/).map(id => ref(el, id)?.textContent || '').join(' ');
+      const value = labelled.split(/\s+/).map(id => refText(ref(el, id))).join(' ');
       if (trim(value)) return trim(value);
     }
     if (trim(el.getAttribute('aria-label'))) return trim(el.getAttribute('aria-label'));
@@ -113,16 +120,19 @@
     const r = el.getBoundingClientRect();
     return Object.fromEntries(['x','y','width','height','top','right','bottom','left'].map(k => [k, Math.round(r[k] * 10) / 10]));
   }
+  // Elements that can be keyboard stops. hidden-focus searches aria-hidden regions for the same list.
+  const focusableSelector = 'a[href],area[href],button,input,select,textarea,summary,[tabindex],[contenteditable="true"],audio[controls],video[controls],iframe';
   function focusables(doc = document) {
-    return all(doc, 'a[href],area[href],button,input,select,textarea,summary,[tabindex],[contenteditable="true"],audio[controls],video[controls],iframe')
+    return all(doc, focusableSelector)
       .filter(el => !el.matches(':disabled') && el.tabIndex >= 0 && !isHidden(el) && (!el.ownerDocument.defaultView || el.getClientRects().length > 0));
   }
   // Can Tab actually stop here? aria-hidden is ignored on purpose: hidden-focus looks for
   // keyboard stops that assistive technology cannot see. Unrendered, visibility-hidden,
   // inert, disabled and type=hidden controls are not keyboard stops.
   // <a>/<area> without href report tabIndex 0 (the HTML default) but cannot take focus.
+  // An editing host without tabindex reports -1 in Chromium, yet Tab stops on it.
   const linked = n => n.hasAttribute('href') || n.hasAttributeNS?.('http://www.w3.org/1999/xlink', 'href');
-  const tabIndexOf = n => /^(a|area)$/i.test(n.tagName) && !linked(n) && !n.hasAttribute('tabindex') ? -1 : n.tabIndex;
+  const tabIndexOf = n => n.hasAttribute('tabindex') ? n.tabIndex : /^(a|area)$/i.test(n.tagName) && !linked(n) ? -1 : editorHost(n) ? 0 : n.tabIndex;
   function tabStop(n) {
     if (tabIndexOf(n) < 0 || n.matches(':disabled') || n.closest('[inert]')) return false;
     const view = n.ownerDocument.defaultView;
@@ -190,7 +200,7 @@
       if (Number(el.getAttribute('tabindex')) > 0) add('tabindex-positive','review','focus','양수 tabindex가 초점 순서를 변경합니다.','DOM 순서보다 먼저 이동할 수 있습니다. 실제 Tab 기록과 콘텐츠의 의미를 함께 검토하세요.',el,'6.1.2','가능하면 DOM 순서를 개선하고 기본 키보드 순서를 유지하세요.',['2.4.3']);
     });
     check('hidden-focus','숨김 영역의 초점 후보', all(doc,'[aria-hidden="true"]'), el => {
-      const candidates = [el,...el.querySelectorAll('a[href],button,input,select,textarea,[tabindex]')].filter(tabStop);
+      const candidates = [el,...el.querySelectorAll(focusableSelector)].filter(tabStop);
       if(candidates.length && !el.closest('[inert],[hidden]')) add('hidden-focus','review','focus','aria-hidden 영역에 초점 후보가 있습니다.','aria-hidden은 키보드 초점을 제거하지 않습니다. 실제로 접근 가능한지 확인하세요.',el,'6.1.2','숨긴 영역에는 상황에 맞게 hidden 또는 inert를 사용하고, 모달 전환 시 초점을 관리하세요.');
     });
     check('custom-keyboard','사용자 정의 조작 요소', all(doc,'[role="button"],[role="checkbox"],[role="tab"],[onclick]'), el => {
@@ -204,8 +214,11 @@
       // aria-level wins; h1–h6 use their number; role=heading defaults to level 2 (WAI-ARIA).
       const ariaLevel = parseInt(el.getAttribute('aria-level'), 10), tagLevel = /^h([1-6])$/i.exec(el.tagName);
       const level = ariaLevel > 0 ? ariaLevel : tagLevel ? Number(tagLevel[1]) : 2;
-      inventory.headings.push({level,name:text(el),selector:selector(el)});
-      if (!text(el)) add('heading-empty','review','markup','빈 제목의 의미를 확인하세요.','CSS 대체 콘텐츠 또는 동적 로딩 여부를 확인하세요.',el,'6.4.2','구역의 실제 내용을 설명하는 제목을 제공하세요.');
+      // An editable heading (or one inside an editor) holds what the user typed: it is named
+      // only by author attributes (aria-labelledby, aria-label, title) and is never "empty".
+      const editable = el.isContentEditable === true, headingName = editable ? name(el) : text(el);
+      inventory.headings.push({level,name:headingName,selector:selector(el)});
+      if (!headingName && !editable) add('heading-empty','review','markup','빈 제목의 의미를 확인하세요.','CSS 대체 콘텐츠 또는 동적 로딩 여부를 확인하세요.',el,'6.4.2','구역의 실제 내용을 설명하는 제목을 제공하세요.');
       if (lastLevel && level > lastLevel + 1) add('heading-order','review','markup','제목 수준이 건너뛰어졌습니다.','제목 계층의 의미를 확인하세요. 수준 건너뜀만으로 기준 위반을 확정하지 않습니다.',el,'5.3.2','실제 콘텐츠 계층에 맞게 h1~h6 또는 aria-level을 구성하세요.');
       lastLevel = level;
     });
@@ -219,6 +232,7 @@
       inventory.frames.push({selector:selector(el),title:el.title,status:'not-inspected'});
       add('frame-scope','review','markup','프레임 내부는 이번 검사에 포함되지 않습니다.','프레임 문서를 별도 탭에서 검사하세요. 교차 출처·내장 영상·보안 제한 프레임은 자동 접근하지 않습니다.',el,'8.2.1');
       // Hidden frames are neither shown nor exposed to assistive technology, so no title is required.
+      // A hidden frame that Tab still reaches (inside aria-hidden) is reported by hidden-focus.
       if (isHidden(el) || trim(el.title)) return;
       if (name(el)) add('frame-title','review','markup','프레임 이름이 title 대신 ARIA로만 제공되었습니다.','aria-label·aria-labelledby 이름은 보조기술에 전달됩니다. 적용하는 심사 기준이 title 속성을 요구하는지 확인하세요.',el,'6.4.2','<iframe title="제품 사용 안내 영상" src="…"></iframe>',['4.1.2']);
       else add('frame-title','error','markup','프레임 제목이 없습니다.','iframe의 목적을 나타내는 title을 제공하세요.',el,'6.4.2','<iframe title="제품 사용 안내 영상" src="…"></iframe>',['4.1.2']);

@@ -123,12 +123,27 @@ with sync_playwright() as p:
 <div id="inert-inside" aria-hidden="true"><div inert><a href="#x">d</a></div></div>
 <div id="live-bug" aria-hidden="true"><a href="#x">숨겨진 링크</a></div>
 <button id="self-bug" aria-hidden="true">자기 자신</button>
+<div id="hidden-summary" aria-hidden="true"><details><summary>더 보기</summary>내용</details></div>
+<div id="hidden-editor" aria-hidden="true"><div contenteditable="true">편집</div></div>
+<div id="hidden-video" aria-hidden="true"><video controls width="40" height="20"></video></div>
+<div id="hidden-frame-removed" aria-hidden="true"><iframe tabindex="-1"></iframe></div>
 </main></body></html>''')
     report = audit(page)
-    for element_id in ['closed-modal', 'non-rendered', 'inert-inside']:
+    for element_id in ['closed-modal', 'non-rendered', 'inert-inside', 'hidden-frame-removed']:
         check(f'non-focusable aria-hidden region #{element_id} is not reported', not flagged(report, 'hidden-focus', element_id))
-    for element_id in ['live-bug', 'self-bug']:
+    for element_id in ['live-bug', 'self-bug', 'hidden-summary', 'hidden-editor', 'hidden-video']:
         check(f'focusable content in aria-hidden #{element_id} is still reported', flagged(report, 'hidden-focus', element_id))
+    page.close()
+
+    # 4b. A carousel slide hidden with aria-hidden still lets Tab into its untitled video frame.
+    # frame-title exempts hidden frames, so hidden-focus must report the Tab stop.
+    page = fixture(browser, '''<html lang="ko"><head><title>슬라이드</title></head><body><main>
+<div id="slide" class="slide" aria-hidden="true"><iframe id="slide-frame"></iframe></div>
+</main></body></html>''')
+    page.keyboard.press('Tab')
+    check('the first Tab stops at the untitled iframe inside aria-hidden', page.evaluate('document.activeElement?.id') == 'slide-frame')
+    report = audit(page)
+    check('a Tab-reachable iframe inside aria-hidden is reported by hidden-focus', flagged(report, 'hidden-focus', 'slide'))
     page.close()
 
     # 5. Accessible names: only roles that allow it take their name from content.
@@ -187,6 +202,46 @@ with sync_playwright() as p:
     check('aria-level overrides the tag level', levels.get('h2#aria-override') == 5)
     page.close()
 
+    # 6b. Editors hold what the user typed: headings that are (or sit inside) editors and
+    # aria-labelledby references to editors or form fields must not copy that text.
+    page = fixture(browser, '''<html lang="ko"><head><title>편집 제목</title></head><body><main>
+<h1 id="editable-title" contenteditable="true" role="textbox" aria-label="Add title">HEADING_PRIVATE_DRAFT</h1>
+<div contenteditable="true"><h2 id="heading-in-editor">EDITOR_PRIVATE_HEADING</h2></div>
+<h2 id="plain-heading">일반 제목</h2>
+<h3 id="empty-editable-heading" contenteditable="true"></h3>
+<div contenteditable="true"><h5 id="jump-in-editor">EVIDENCE_PRIVATE_HEADING</h5></div>
+<span id="memo-label">메모</span>
+<div id="draft" contenteditable="true">LABELLEDBY_PRIVATE_DRAFT</div>
+<textarea id="notes">LABELLEDBY_PRIVATE_DEFAULT</textarea>
+<div id="summary-box">요약 <textarea>LABELLEDBY_WRAPPED_DEFAULT</textarea></div>
+<button id="by-editor" aria-labelledby="draft"></button>
+<button id="by-mixed" aria-labelledby="memo-label notes"></button>
+<button id="by-wrapper" aria-labelledby="summary-box"></button>
+<button id="by-hidden-label" aria-labelledby="hidden-label"></button><div id="hidden-label" hidden><span>숨은 레이블</span></div>
+</main></body></html>''')
+    page.locator('#editable-title').click()
+    page.keyboard.press('End')
+    page.keyboard.type('TYPED_HEADING_SECRET')
+    report = audit(page)
+    headings = {h['selector']: h['name'] for h in report['inventory']['headings']}
+    check('an editable heading is named by its aria-label, not its content', headings.get('h1#editable-title') == 'Add title')
+    check('a heading inside an editor has no name from its content', headings.get('h2#heading-in-editor') == '')
+    check('a plain heading keeps its text', headings.get('h2#plain-heading') == '일반 제목')
+    for element_id in ['editable-title', 'heading-in-editor', 'empty-editable-heading']:
+        check(f'editable heading #{element_id} is not reported as an empty heading', not flagged(report, 'heading-empty', element_id))
+    check('a level jump inside an editor is still reported', flagged(report, 'heading-order', 'jump-in-editor'))
+    focusable = {f['selector']: f['name'] for f in report['inventory']['focusables']}
+    check('aria-labelledby does not read a referenced editor', focusable.get('button#by-editor') == '')
+    check('a button labelled only by an editor is reported as unnamed', flagged(report, 'control-name', 'by-editor'))
+    check('aria-labelledby skips a referenced textarea but keeps other references', focusable.get('button#by-mixed') == '메모')
+    check('aria-labelledby skips a textarea inside the referenced element', focusable.get('button#by-wrapper') == '요약')
+    check('aria-labelledby still reads a hidden referenced label', focusable.get('button#by-hidden-label') == '숨은 레이블')
+    serialized = json.dumps(report, ensure_ascii=False)
+    for secret in ['HEADING_PRIVATE_DRAFT', 'TYPED_HEADING_SECRET', 'EDITOR_PRIVATE_HEADING', 'LABELLEDBY_PRIVATE_DRAFT',
+                   'LABELLEDBY_PRIVATE_DEFAULT', 'LABELLEDBY_WRAPPED_DEFAULT', 'EVIDENCE_PRIVATE_HEADING']:
+        check(f'{secret} does not enter the report', secret not in serialized)
+    page.close()
+
     # 7. The HTML workspace must finish even when the preview is scrolled out of view.
     app = browser.new_page(viewport={'width': 1440, 'height': 1000})
     html = read(PUBLIC / 'index.html')
@@ -204,6 +259,19 @@ with sync_playwright() as p:
     app.wait_for_function('StudioApp.getReport()?.page.title === "화면 밖 미리보기"', timeout=10000)
     check('an off-screen HTML workspace still completes its audit', app.evaluate('StudioApp.getReport().findings.length') > 0)
     check('the off-screen workspace audit reports a real viewport', app.evaluate('StudioApp.getReport().page.viewport.width') > 0)
+
+    # 8. Report comparison: a different built-in rule engine is not "the same conditions".
+    def compare_with(engine_builtin):
+        previous = app.evaluate('StudioApp.getReport()')
+        previous['engine']['builtin'] = engine_builtin
+        app.evaluate('() => { const s = document.getElementById("compare-summary"); s.hidden = true; s.textContent = ""; }')
+        app.locator('#compare-file').set_input_files(files=[{'name': 'previous.json', 'mimeType': 'application/json',
+                                                             'buffer': json.dumps(previous, ensure_ascii=False).encode('utf-8')}])
+        app.wait_for_function('() => { const s = document.getElementById("compare-summary"); return !s.hidden && s.textContent !== ""; }')
+        return app.locator('#compare-summary').inner_text()
+    current_engine = app.evaluate('StudioApp.getReport().engine.builtin')
+    check('a report from the same rule engine compares under the same conditions', '같은 URL' in compare_with(current_engine))
+    check('a report from another rule engine is not the same conditions', '조건이 달라' in compare_with('0.3.2'))
     app.close()
     browser.close()
 

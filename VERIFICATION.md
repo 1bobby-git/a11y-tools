@@ -9,8 +9,8 @@
 - `python tests/browser_test.py`: 45개 통과.
 - `python tests/evidence_browser_test.py`: 29개 통과.
 - `python tests/workspace_browser_test.py`: 42개 통과.
-- `python tests/rules_browser_test.py`: 기본 규칙 회귀 50개 통과. 같은 파일을 수정 전 main(04aea42)에 실행하면 31개가 실패합니다(실패 대상 오지정, span·href 없는 링크 누락, 숨김·ARIA 이름 iframe 오류, 닫힌 모달의 초점 후보, 내용 기반 이름과 입력 내용 수집, `role="heading"` 수준, 화면 밖 워크스페이스 검사 멈춤).
-- 합계 207개.
+- `python tests/rules_browser_test.py`: 기본 규칙 회귀 77개 통과. 같은 파일을 수정 전 main(04aea42)에 실행하면 47개가 실패하고 화면 밖 워크스페이스 검사에서 멈춥니다(실패 대상 오지정, span·href 없는 링크 누락, 숨김·ARIA 이름 iframe 오류, 닫힌 모달의 초점 후보, 내용 기반 이름과 입력 내용 수집, `role="heading"` 수준, 화면 밖 워크스페이스 검사 멈춤). 리뷰 반영 전 PR 커밋(9f26b29)에 실행하면 19개가 실패합니다(aria-hidden 영역 속 Tab 가능한 iframe·summary·편집 영역·영상 누락, 편집 제목과 `aria-labelledby`의 입력 내용 수집, 편집 영역 안 결과의 마크업 증거, 기본 규칙 엔진이 다른 보고서를 같은 조건으로 비교).
+- 합계 234개.
 
 수정 전 main에서 이미 실패하던 항목도 있었습니다. `browser_test.py`의 axe 미실행 표시 검사는 axe-core가 실제로 번들된 뒤 갱신되지 않았습니다. `workspace_browser_test.py`의 두 번째 HTML 검사는 미리보기가 화면 밖에 있어 끝나지 않았습니다. `evidence_browser_test.py`·`workspace_browser_test.py`는 `/usr/bin/chromium` 고정 경로 때문에 Windows에서 실행되지 않았습니다. 이번 변경에서 모두 수정했습니다.
 
