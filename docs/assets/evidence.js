@@ -22,9 +22,18 @@ function selector(el){
  }
  return (root.host?selector(root.host)+' >>> ':'')+parts.join(' > ');
 }
+// Same algorithm as core.js resolve(): a shadow root cannot anchor a path's first segment in CSS,
+// so when a path matches more than once keep the matches whose ancestor at the path's depth is a
+// direct child of the root. A path that matches once (an id, an axe target) is returned unchanged.
+function resolve(root,path){
+ const found=Array.from(root.querySelectorAll(path));if(found.length<2)return found;
+ const depth=path.split(' > ').length-1;
+ const anchored=found.filter(el=>{let n=el;for(let i=0;i<depth&&n;i++)n=n.parentElement;return n?.parentNode===root;});
+ return anchored.length?anchored:found;
+}
 function matches(path,doc){
  try{let contexts=[doc];const parts=String(path).split(' >>> ');for(let i=0;i<parts.length;i++){
-  const found=contexts.flatMap(r=>Array.from(r.querySelectorAll(parts[i])));
+  const found=contexts.flatMap(r=>resolve(r,parts[i]));
   if(i===parts.length-1)return found;contexts=found.map(n=>n.shadowRoot).filter(Boolean);
  }}catch{}return [];
 }

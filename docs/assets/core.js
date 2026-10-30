@@ -4,17 +4,22 @@
  */
 (function (g) {
   'use strict';
-  if (g.StudioAudit?.version === '0.3.3') return;
-  const version = '0.3.3';
+  if (g.StudioAudit?.version === '0.3.4') return;
+  const version = '0.3.4';
   const trim = (v, max = 240) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
   const cleanURL = value => {
     try { const u = new URL(value); return /^https?:$/.test(u.protocol) ? u.origin + u.pathname : '로컬 또는 HTML 입력'; }
     catch { return 'HTML 입력'; }
   };
   const all = (root, selector) => {
-    const found = Array.from(root.querySelectorAll(selector));
-    // Open shadow roots are inspected; closed shadow roots are not observable.
-    for (const host of root.querySelectorAll('*')) if (host.shadowRoot) found.push(...all(host.shadowRoot, selector));
+    // Open shadow roots are inspected; closed shadow roots are not observable. A shadow tree is
+    // read at its host's position (shadow-including tree order), not after the whole light DOM,
+    // so headings and focus candidates inside it keep their place in the outline and Tab order.
+    const matched = new Set(root.querySelectorAll(selector)), found = [];
+    for (const el of root.querySelectorAll('*')) {
+      if (matched.has(el)) found.push(el);
+      if (el.shadowRoot) for (const n of all(el.shadowRoot, selector)) found.push(n);
+    }
     return found;
   };
   function parent(el) { return el.parentElement || el.getRootNode?.().host || null; }
@@ -56,10 +61,23 @@
     const host = root?.host;
     return (host ? selector(host) + ' >>> ' : '') + parts.join(' > ');
   }
+  // Resolves one tree's part of a selector() path. In a document the path starts at `html` or at
+  // an id that is unique in its tree. A shadow root has no element CSS can anchor the first
+  // segment to, so `div > img` also matches a look-alike deeper in the same shadow tree. When a
+  // path matches more than once, keep the matches whose ancestor at the path's depth is a direct
+  // child of the root: the element the path was built for. A path that matches once (an id, an
+  // axe target) is returned unchanged. evidence.js resolve() is the same algorithm.
+  function resolve(root, path) {
+    const found = Array.from(root.querySelectorAll(path));
+    if (found.length < 2) return found;
+    const depth = path.split(' > ').length - 1;
+    const anchored = found.filter(el => { let n = el; for (let i = 0; i < depth && n; i++) n = n.parentElement; return n?.parentNode === root; });
+    return anchored.length ? anchored : found;
+  }
   function find(selectorText, doc = document) {
     const parts = String(selectorText).split(' >>> ');
     let root = doc, el = null;
-    try { for (let i = 0; i < parts.length; i++) { el = root.querySelector(parts[i]); if (!el) return null; root = el.shadowRoot; } }
+    try { for (let i = 0; i < parts.length; i++) { el = resolve(root, parts[i])[0]; if (!el) return null; root = el.shadowRoot; } }
     catch { return null; }
     return el;
   }
@@ -105,7 +123,11 @@
     if (el.tagName === 'IMG' || el.tagName === 'AREA' || (el.tagName === 'INPUT' && el.type === 'image')) return trim(el.getAttribute('alt') || el.title);
     if (el.tagName === 'INPUT' && /^(submit|reset|button)$/.test(el.type)) return trim(el.getAttribute('value') || ({submit:'제출', reset:'초기화'}[el.type] || ''));
     // HTML documents report SVG tag names in lower case; the name comes from a child <title>.
-    if (el.localName === 'svg') return trim(Array.from(el.children).find(c => c.localName === 'title')?.textContent || el.getAttribute('title'));
+    // An SVG whose role takes its name from content (role="button", "link") falls back to its <text>.
+    if (el.localName === 'svg') {
+      const title = trim(Array.from(el.children).find(c => c.localName === 'title')?.textContent || el.getAttribute('title'));
+      if (title || !namedByContent(el)) return title;
+    }
     // This fallback is not the full accessible-name algorithm. axe handles it when installed.
     return trim((namedByContent(el) ? text(el) : '') || el.getAttribute('title'));
   }
@@ -193,7 +215,8 @@
       if (el.autoplay && !el.muted) add('media-autoplay','review','media','소리 있는 자동 재생 설정이 있습니다.','브라우저의 실제 재생 여부와 중지·음량 제어 수단을 확인하세요.',el,'5.4.2','자동 재생을 제거하거나 사용자가 직접 재생하도록 구성하세요.');
     });
     check('control-name','컨트롤 이름', all(doc,'button,a[href],input:not([type="hidden"]),select,textarea,[role="button"],[role="link"]'), el => {
-      if (isHidden(el)) return;
+      // Links and buttons inside an editor are what the user typed (their text is never read), not page controls.
+      if (isHidden(el) || el.isContentEditable === true) return;
       if (!name(el)) add('control-name','review', /INPUT|SELECT|TEXTAREA/.test(el.tagName) ? 'markup':'focus','컨트롤의 이름을 확인하세요.','기본 규칙에서 이름을 찾지 못했습니다. 전체 접근 가능한 이름 계산은 axe-core 결과 및 실제 보조기술로 확인하세요.',el,'7.3.2','<label for="email">이메일</label>\n<input id="email" type="email" autocomplete="email">\n<!-- 아이콘 버튼은 기능을 확인한 뒤 aria-label을 제공 -->',['4.1.2']);
     });
     check('tabindex-positive','명시적 초점 순서', all(doc,'[tabindex]'), el => {
