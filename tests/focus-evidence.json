@@ -3,13 +3,13 @@
   "events": [
     {
       "sequence": 1,
-      "at": "2026-09-07T05:49:48.683Z",
-      "elapsedMs": 20,
+      "at": "2026-10-30T15:50:59.453Z",
+      "elapsedMs": 35,
       "via": "DOM focus (원인 미확정)",
       "selector": "button#first",
       "name": "첫째",
       "tag": "button",
-      "html": "<button id=\"first\">…</button>",
+      "html": "<button id=\"first\">첫째</button>",
       "url": "로컬 또는 HTML 입력",
       "before": {
         "scrollX": 0,
@@ -23,10 +23,10 @@
           "rect": {
             "x": 20,
             "y": 20,
-            "width": 41.1,
+            "width": 42.7,
             "height": 35,
             "top": 20,
-            "right": 61.1,
+            "right": 62.7,
             "bottom": 55,
             "left": 20
           },
@@ -53,10 +53,10 @@
           "rect": {
             "x": 20,
             "y": 20,
-            "width": 41.1,
+            "width": 42.7,
             "height": 35,
             "top": 20,
-            "right": 61.1,
+            "right": 62.7,
             "bottom": 55,
             "left": 20
           },
@@ -83,13 +83,13 @@
     },
     {
       "sequence": 2,
-      "at": "2026-09-07T05:49:49.239Z",
-      "elapsedMs": 576,
+      "at": "2026-10-30T15:51:00.023Z",
+      "elapsedMs": 605,
       "via": "Tab",
       "selector": "button#bad",
       "name": "레이아웃 변경",
       "tag": "button",
-      "html": "<button class=\"bad\" id=\"bad\">…</button>",
+      "html": "<button class=\"bad\" id=\"bad\">레이아웃 변경</button>",
       "url": "로컬 또는 HTML 입력",
       "before": {
         "scrollX": 0,
@@ -138,45 +138,15 @@
           },
           "indicator": {
             "outline": "none",
-            "outlineWidth": "0px",
+            "outlineWidth": "3px",
             "boxShadow": "none"
           },
           "layoutShifts": [
             {
-              "time": 642.0999999999767,
-              "value": 0.11700607187499999,
+              "time": 791.1000001430511,
+              "value": 0.11636441044921876,
               "hadRecentInput": true,
               "sources": [
-                {
-                  "selector": "button#bad",
-                  "previousRect": {
-                    "x": 61.0625,
-                    "y": 20,
-                    "width": 94.875,
-                    "height": 35
-                  },
-                  "currentRect": {
-                    "x": 20,
-                    "y": 55,
-                    "width": 980,
-                    "height": 90
-                  }
-                },
-                {
-                  "selector": "button#last",
-                  "previousRect": {
-                    "x": 155.9375,
-                    "y": 20,
-                    "width": 53.59375,
-                    "height": 35
-                  },
-                  "currentRect": {
-                    "x": 20,
-                    "y": 145,
-                    "width": 53.59375,
-                    "height": 35
-                  }
-                },
                 {
                   "selector": "html > body > footer",
                   "previousRect": {
@@ -190,6 +160,36 @@
                     "y": 200,
                     "width": 1000,
                     "height": 70
+                  }
+                },
+                {
+                  "selector": "button#bad",
+                  "previousRect": {
+                    "x": 62.671875,
+                    "y": 20,
+                    "width": 99.6875,
+                    "height": 35
+                  },
+                  "currentRect": {
+                    "x": 20,
+                    "y": 55,
+                    "width": 980,
+                    "height": 90
+                  }
+                },
+                {
+                  "selector": "button#last",
+                  "previousRect": {
+                    "x": 162.359375,
+                    "y": 20,
+                    "width": 56,
+                    "height": 35
+                  },
+                  "currentRect": {
+                    "x": 20,
+                    "y": 145,
+                    "width": 56,
+                    "height": 35
                   }
                 }
               ]
@@ -236,45 +236,15 @@
           },
           "indicator": {
             "outline": "none",
-            "outlineWidth": "0px",
+            "outlineWidth": "3px",
             "boxShadow": "none"
           },
           "layoutShifts": [
             {
-              "time": 642.0999999999767,
-              "value": 0.11700607187499999,
+              "time": 791.1000001430511,
+              "value": 0.11636441044921876,
               "hadRecentInput": true,
               "sources": [
-                {
-                  "selector": "button#bad",
-                  "previousRect": {
-                    "x": 61.0625,
-                    "y": 20,
-                    "width": 94.875,
-                    "height": 35
-                  },
-                  "currentRect": {
-                    "x": 20,
-                    "y": 55,
-                    "width": 980,
-                    "height": 90
-                  }
-                },
-                {
-                  "selector": "button#last",
-                  "previousRect": {
-                    "x": 155.9375,
-                    "y": 20,
-                    "width": 53.59375,
-                    "height": 35
-                  },
-                  "currentRect": {
-                    "x": 20,
-                    "y": 145,
-                    "width": 53.59375,
-                    "height": 35
-                  }
-                },
                 {
                   "selector": "html > body > footer",
                   "previousRect": {
@@ -288,6 +258,36 @@
                     "y": 200,
                     "width": 1000,
                     "height": 70
+                  }
+                },
+                {
+                  "selector": "button#bad",
+                  "previousRect": {
+                    "x": 62.671875,
+                    "y": 20,
+                    "width": 99.6875,
+                    "height": 35
+                  },
+                  "currentRect": {
+                    "x": 20,
+                    "y": 55,
+                    "width": 980,
+                    "height": 90
+                  }
+                },
+                {
+                  "selector": "button#last",
+                  "previousRect": {
+                    "x": 162.359375,
+                    "y": 20,
+                    "width": 56,
+                    "height": 35
+                  },
+                  "currentRect": {
+                    "x": 20,
+                    "y": 145,
+                    "width": 56,
+                    "height": 35
                   }
                 }
               ]
@@ -304,40 +304,10 @@
   ],
   "layoutShifts": [
     {
-      "time": 642.0999999999767,
-      "value": 0.11700607187499999,
+      "time": 791.1000001430511,
+      "value": 0.11636441044921876,
       "hadRecentInput": true,
       "sources": [
-        {
-          "selector": "button#bad",
-          "previousRect": {
-            "x": 61.0625,
-            "y": 20,
-            "width": 94.875,
-            "height": 35
-          },
-          "currentRect": {
-            "x": 20,
-            "y": 55,
-            "width": 980,
-            "height": 90
-          }
-        },
-        {
-          "selector": "button#last",
-          "previousRect": {
-            "x": 155.9375,
-            "y": 20,
-            "width": 53.59375,
-            "height": 35
-          },
-          "currentRect": {
-            "x": 20,
-            "y": 145,
-            "width": 53.59375,
-            "height": 35
-          }
-        },
         {
           "selector": "html > body > footer",
           "previousRect": {
@@ -351,6 +321,36 @@
             "y": 200,
             "width": 1000,
             "height": 70
+          }
+        },
+        {
+          "selector": "button#bad",
+          "previousRect": {
+            "x": 62.671875,
+            "y": 20,
+            "width": 99.6875,
+            "height": 35
+          },
+          "currentRect": {
+            "x": 20,
+            "y": 55,
+            "width": 980,
+            "height": 90
+          }
+        },
+        {
+          "selector": "button#last",
+          "previousRect": {
+            "x": 162.359375,
+            "y": 20,
+            "width": 56,
+            "height": 35
+          },
+          "currentRect": {
+            "x": 20,
+            "y": 145,
+            "width": 56,
+            "height": 35
           }
         }
       ]

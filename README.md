@@ -62,9 +62,11 @@ npm run build
 npm test
 python tests/browser_test.py
 python tests/evidence_browser_test.py
+python tests/workspace_browser_test.py
+python tests/rules_browser_test.py
 ```
 
-브라우저 테스트에는 Python Playwright와 Chromium이 필요합니다. 실제 실행 결과와 미검증 범위는 [VERIFICATION.md](VERIFICATION.md)를 확인하세요. 기존 Pages 워크플로는 main 변경 시 의존성 설치, 빌드, 정적 테스트, 배포를 수행합니다. `docs/`, `extension/assets/`, 확장 ZIP은 `scripts/build.mjs`가 생성합니다.
+브라우저 테스트에는 Python Playwright와 Chromium이 필요합니다(`pip install playwright` 후 `python -m playwright install chromium`). `CHROMIUM_PATH`로 다른 Chromium을 지정할 수 있습니다. 실제 실행 결과와 미검증 범위는 [VERIFICATION.md](VERIFICATION.md)를 확인하세요. 기존 Pages 워크플로는 main 변경 시 의존성 설치, 빌드, 정적 테스트, 배포를 수행합니다. PR에서는 CI 워크플로가 빌드·생성물 일치·정적 테스트·브라우저 테스트를 실행하며 배포하지 않습니다. `docs/`, `extension/assets/`, 확장 ZIP은 `scripts/build.mjs`가 생성합니다.
 
 핵심 규칙과 초점 기록기는 유지하고 `public/assets/evidence.js`, `evidence-ui.js`로 증거 수집·표시를 확장했습니다. `runner/`는 선택적 데스크톱 보조기술 실행부입니다.
 

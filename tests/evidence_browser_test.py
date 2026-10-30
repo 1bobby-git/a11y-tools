@@ -1,29 +1,31 @@
 """Local Chromium regression tests. Axe result fixtures are adapters, not a claim of live axe execution."""
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-import json,re
+import json,os,re
 ROOT=Path(__file__).resolve().parents[1]
 P=ROOT/'public'
 OUT=ROOT/'tests/artifacts'
 OUT.mkdir(exist_ok=True)
+# Same lookup as browser_test.py: CHROMIUM_PATH, a system Chromium, else Playwright's own build.
+CHROMIUM=os.environ.get('CHROMIUM_PATH') or ('/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None)
 passed=[]
 def check(name,condition):
     assert condition,name
     passed.append(name)
     print('PASS',name)
 def inject(page,files):
-    for f in files:page.add_script_tag(content=(P/'assets'/f).read_text())
+    for f in files:page.add_script_tag(content=(P/'assets'/f).read_text(encoding='utf-8'))
 def app(browser):
     p=browser.new_page(viewport={'width':1440,'height':1000})
-    html=(P/'index.html').read_text()
+    html=(P/'index.html').read_text(encoding='utf-8')
     html=re.sub(r'<script\b[^>]*src="[^"]+"[^>]*></script>','',html)
     html=re.sub(r'<link\b[^>]*rel="stylesheet"[^>]*>','',html)
     p.set_content(html)
-    for f in ['style.css','evidence.css']:p.add_style_tag(content=(P/'assets'/f).read_text())
+    for f in ['style.css','evidence.css']:p.add_style_tag(content=(P/'assets'/f).read_text(encoding='utf-8'))
     inject(p,['config.js','standards.js','core.js','evidence.js','evidence-ui.js','focus.js','app.js'])
     return p
 with sync_playwright() as pw:
-    b=pw.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+    b=pw.chromium.launch(executable_path=CHROMIUM,headless=True,args=['--no-sandbox'])
     p=b.new_page()
     p.set_content('''<html lang="ko"><head><title>대상별 증거 테스트</title></head><body><h1>가입 정보</h1>
 <section><label for="email">대표 이메일</label><input id="email" type="email" value="PRIVATE_VALUE"></section>
@@ -88,5 +90,5 @@ with sync_playwright() as pw:
     check('malformed node evidence is rejected',a.evaluate('''()=>{const r=structuredClone(StudioApp.getReport());r.findings[0].nodes=[null];try{StudioApp.validateReport(r);return false}catch{return true}}'''))
     check('malicious preview scripts and external resource attributes are removed',a.evaluate('''()=>{const s=StudioEvidenceUI.safePreview('<script>parent.PWNED=true</script><img src="https://example.com/private" onerror="alert(1)"><iframe srcdoc="bad"></iframe>');return !s.includes('<script')&&!s.includes('onerror=')&&!s.includes('<iframe')&&!s.includes('src="https:')}'''))
     b.close()
-(ROOT/'tests/evidence-verification.json').write_text(json.dumps({'environment':'Local Chromium fixtures; axe adapter fixture only; real screen-reader not run','passed':len(passed),'tests':passed},ensure_ascii=False,indent=2)+'\n')
+(ROOT/'tests/evidence-verification.json').write_text(json.dumps({'environment':'Local Chromium fixtures; axe adapter fixture only; real screen-reader not run','passed':len(passed),'tests':passed},ensure_ascii=False,indent=2)+'\n',encoding='utf-8',newline='\n')
 print(json.dumps({'passed':len(passed)}))

@@ -4,8 +4,8 @@
  */
 (function (g) {
   'use strict';
-  if (g.StudioAudit?.version === '0.1.0') return;
-  const version = '0.1.0';
+  if (g.StudioAudit?.version === '0.3.3') return;
+  const version = '0.3.3';
   const trim = (v, max = 240) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
   const cleanURL = value => {
     try { const u = new URL(value); return /^https?:$/.test(u.protocol) ? u.origin + u.pathname : '로컬 또는 HTML 입력'; }
@@ -38,16 +38,22 @@
   function selector(el) {
     if (!el || el.nodeType !== 1) return 'document';
     const esc = v => (g.CSS?.escape ? g.CSS.escape(v) : String(v).replace(/[^a-zA-Z0-9_-]/g, '\\$&'));
-    const parts = [];
+    const unique = (root, path) => { try { return root.querySelectorAll(path).length === 1; } catch { return false; } };
+    // Full path up to the tree root. An id may shorten it only when that id is unique in
+    // its own tree; a truncated or duplicate-id path can resolve to a passing look-alike.
+    const root = el.getRootNode?.() || el.ownerDocument, parts = [];
     for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
-      let part = n.tagName.toLowerCase();
-      if (n.id) { part += '#' + esc(n.id); parts.unshift(part); break; }
-      const siblings = n.parentElement ? Array.from(n.parentElement.children).filter(s => s.tagName === n.tagName) : [];
+      let part = n.localName;
+      if (n.id) {
+        const id = '#' + esc(n.id);
+        if (unique(root, id)) { parts.unshift(part + id); break; }
+        part += id;
+      }
+      const siblings = Array.from(n.parentNode?.children || []).filter(s => s.localName === n.localName);
       if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(n) + 1})`;
       parts.unshift(part);
-      if (parts.length >= 7) break;
     }
-    const host = el.getRootNode?.().host;
+    const host = root?.host;
     return (host ? selector(host) + ' >>> ' : '') + parts.join(' > ');
   }
   function find(selectorText, doc = document) {
@@ -58,13 +64,28 @@
     return el;
   }
   function ref(el, id) { return el.getRootNode().getElementById?.(id) || null; }
+  // Form fields and editors hold values, not names. Their content may be what the user
+  // typed, so it is never read into a name and never names an ancestor such as a label.
+  const formField = n => /^(INPUT|SELECT|TEXTAREA)$/i.test(n.tagName);
+  const editorHost = n => n.isContentEditable === true && n.parentElement?.isContentEditable !== true;
   function text(el, depth = 0) {
     if (!el || depth > 12) return '';
     return trim(Array.from(el.childNodes || []).map(n => {
       if (n.nodeType === 3) return n.textContent;
-      if (n.nodeType !== 1 || /^(SCRIPT|STYLE|TEMPLATE)$/.test(n.tagName) || isHidden(n)) return '';
+      if (n.nodeType !== 1 || /^(SCRIPT|STYLE|TEMPLATE)$/.test(n.tagName) || formField(n) || editorHost(n) || isHidden(n)) return '';
+      const label = trim(n.getAttribute('aria-label'));
+      if (label) return label;
       return n.tagName === 'IMG' ? (n.getAttribute('alt') || '') : text(n, depth + 1);
     }).join(' '));
+  }
+  // WAI-ARIA "name from author" roles: images, text fields, selects, frames, media and
+  // landmarks are never named by their subtree.
+  const authorOnlyRole = /^(img|image|textbox|searchbox|combobox|listbox|main|navigation|banner|contentinfo|complementary|region|search|form)$/;
+  const authorOnlyTag = /^(main|nav|header|footer|aside|form|section|iframe|svg|audio|video)$/;
+  function namedByContent(el) {
+    if (formField(el) || el.isContentEditable === true) return false;
+    const role = (el.getAttribute('role') || '').trim().split(/\s+/)[0].toLowerCase();
+    return role ? !authorOnlyRole.test(role) : !authorOnlyTag.test(el.localName);
   }
   function name(el) {
     const labelled = (el.getAttribute('aria-labelledby') || '').trim();
@@ -74,11 +95,12 @@
     }
     if (trim(el.getAttribute('aria-label'))) return trim(el.getAttribute('aria-label'));
     if (el.labels?.length) { const value = Array.from(el.labels).map(l => text(l)).join(' '); if (trim(value)) return trim(value); }
-    if (el.tagName === 'IMG' || (el.tagName === 'INPUT' && el.type === 'image')) return trim(el.getAttribute('alt') || el.title);
+    if (el.tagName === 'IMG' || el.tagName === 'AREA' || (el.tagName === 'INPUT' && el.type === 'image')) return trim(el.getAttribute('alt') || el.title);
     if (el.tagName === 'INPUT' && /^(submit|reset|button)$/.test(el.type)) return trim(el.getAttribute('value') || ({submit:'제출', reset:'초기화'}[el.type] || ''));
-    if (el.tagName === 'SVG') return trim(el.querySelector('title')?.textContent || el.getAttribute('title'));
+    // HTML documents report SVG tag names in lower case; the name comes from a child <title>.
+    if (el.localName === 'svg') return trim(Array.from(el.children).find(c => c.localName === 'title')?.textContent || el.getAttribute('title'));
     // This fallback is not the full accessible-name algorithm. axe handles it when installed.
-    return trim(text(el) || el.getAttribute('title'));
+    return trim((namedByContent(el) ? text(el) : '') || el.getAttribute('title'));
   }
   function snippet(el) {
     if (!el?.tagName) return '';
@@ -94,6 +116,19 @@
   function focusables(doc = document) {
     return all(doc, 'a[href],area[href],button,input,select,textarea,summary,[tabindex],[contenteditable="true"],audio[controls],video[controls],iframe')
       .filter(el => !el.matches(':disabled') && el.tabIndex >= 0 && !isHidden(el) && (!el.ownerDocument.defaultView || el.getClientRects().length > 0));
+  }
+  // Can Tab actually stop here? aria-hidden is ignored on purpose: hidden-focus looks for
+  // keyboard stops that assistive technology cannot see. Unrendered, visibility-hidden,
+  // inert, disabled and type=hidden controls are not keyboard stops.
+  // <a>/<area> without href report tabIndex 0 (the HTML default) but cannot take focus.
+  const linked = n => n.hasAttribute('href') || n.hasAttributeNS?.('http://www.w3.org/1999/xlink', 'href');
+  const tabIndexOf = n => /^(a|area)$/i.test(n.tagName) && !linked(n) && !n.hasAttribute('tabindex') ? -1 : n.tabIndex;
+  function tabStop(n) {
+    if (tabIndexOf(n) < 0 || n.matches(':disabled') || n.closest('[inert]')) return false;
+    const view = n.ownerDocument.defaultView;
+    if (!view) return true;
+    const visibility = view.getComputedStyle(n).visibility;
+    return visibility !== 'hidden' && visibility !== 'collapse' && n.getClientRects().length > 0;
   }
   async function run(doc = document, options = {}) {
     const live = Boolean(doc.defaultView);
@@ -155,18 +190,21 @@
       if (Number(el.getAttribute('tabindex')) > 0) add('tabindex-positive','review','focus','양수 tabindex가 초점 순서를 변경합니다.','DOM 순서보다 먼저 이동할 수 있습니다. 실제 Tab 기록과 콘텐츠의 의미를 함께 검토하세요.',el,'6.1.2','가능하면 DOM 순서를 개선하고 기본 키보드 순서를 유지하세요.',['2.4.3']);
     });
     check('hidden-focus','숨김 영역의 초점 후보', all(doc,'[aria-hidden="true"]'), el => {
-      const candidates = [el,...el.querySelectorAll('a[href],button,input,select,textarea,[tabindex]')].filter(n=>n.tabIndex>=0 && !n.disabled);
+      const candidates = [el,...el.querySelectorAll('a[href],button,input,select,textarea,[tabindex]')].filter(tabStop);
       if(candidates.length && !el.closest('[inert],[hidden]')) add('hidden-focus','review','focus','aria-hidden 영역에 초점 후보가 있습니다.','aria-hidden은 키보드 초점을 제거하지 않습니다. 실제로 접근 가능한지 확인하세요.',el,'6.1.2','숨긴 영역에는 상황에 맞게 hidden 또는 inert를 사용하고, 모달 전환 시 초점을 관리하세요.');
     });
     check('custom-keyboard','사용자 정의 조작 요소', all(doc,'[role="button"],[role="checkbox"],[role="tab"],[onclick]'), el => {
-      if (isHidden(el) || /BUTTON|INPUT|SELECT|TEXTAREA|A|SUMMARY/.test(el.tagName)) return;
-      if (el.tabIndex < 0 && el.getAttribute('role') !== 'tab') add('custom-keyboard','review','focus','키보드 접근 경로를 확인하세요.','클릭 또는 위젯 역할이 있지만 기본 Tab 후보가 아닙니다. 복합 위젯의 방향키 이동은 별도로 확인합니다.',el,'6.1.1','가능하면 <button type="button">실제 동작 이름</button>을 사용하세요.');
+      // Only natively focusable controls are exempt: <span>, <label> and <a> without href are not.
+      if (isHidden(el) || el.matches('a[href],area[href],button,input,select,textarea,summary')) return;
+      if (tabIndexOf(el) < 0 && el.getAttribute('role') !== 'tab') add('custom-keyboard','review','focus','키보드 접근 경로를 확인하세요.','클릭 또는 위젯 역할이 있지만 기본 Tab 후보가 아닙니다. 복합 위젯의 방향키 이동은 별도로 확인합니다.',el,'6.1.1','가능하면 <button type="button">실제 동작 이름</button>을 사용하세요.');
     });
     let lastLevel = 0;
     check('heading-order','제목 구조', all(doc,'h1,h2,h3,h4,h5,h6,[role="heading"]'), el => {
       if (isHidden(el)) return;
-      const level = Number(el.getAttribute('aria-level') || el.tagName.slice(1));
-      inventory.headings.push({level:Number.isFinite(level)?level:null,name:text(el),selector:selector(el)});
+      // aria-level wins; h1–h6 use their number; role=heading defaults to level 2 (WAI-ARIA).
+      const ariaLevel = parseInt(el.getAttribute('aria-level'), 10), tagLevel = /^h([1-6])$/i.exec(el.tagName);
+      const level = ariaLevel > 0 ? ariaLevel : tagLevel ? Number(tagLevel[1]) : 2;
+      inventory.headings.push({level,name:text(el),selector:selector(el)});
       if (!text(el)) add('heading-empty','review','markup','빈 제목의 의미를 확인하세요.','CSS 대체 콘텐츠 또는 동적 로딩 여부를 확인하세요.',el,'6.4.2','구역의 실제 내용을 설명하는 제목을 제공하세요.');
       if (lastLevel && level > lastLevel + 1) add('heading-order','review','markup','제목 수준이 건너뛰어졌습니다.','제목 계층의 의미를 확인하세요. 수준 건너뜀만으로 기준 위반을 확정하지 않습니다.',el,'5.3.2','실제 콘텐츠 계층에 맞게 h1~h6 또는 aria-level을 구성하세요.');
       lastLevel = level;
@@ -180,7 +218,10 @@
     check('frame-title','프레임 검사 범위', all(doc,'iframe'), el => {
       inventory.frames.push({selector:selector(el),title:el.title,status:'not-inspected'});
       add('frame-scope','review','markup','프레임 내부는 이번 검사에 포함되지 않습니다.','프레임 문서를 별도 탭에서 검사하세요. 교차 출처·내장 영상·보안 제한 프레임은 자동 접근하지 않습니다.',el,'8.2.1');
-      if(!trim(el.title)) add('frame-title','error','markup','프레임 제목이 없습니다.','iframe의 목적을 나타내는 title을 제공하세요.',el,'6.4.2','<iframe title="제품 사용 안내 영상" src="…"></iframe>');
+      // Hidden frames are neither shown nor exposed to assistive technology, so no title is required.
+      if (isHidden(el) || trim(el.title)) return;
+      if (name(el)) add('frame-title','review','markup','프레임 이름이 title 대신 ARIA로만 제공되었습니다.','aria-label·aria-labelledby 이름은 보조기술에 전달됩니다. 적용하는 심사 기준이 title 속성을 요구하는지 확인하세요.',el,'6.4.2','<iframe title="제품 사용 안내 영상" src="…"></iframe>',['4.1.2']);
+      else add('frame-title','error','markup','프레임 제목이 없습니다.','iframe의 목적을 나타내는 title을 제공하세요.',el,'6.4.2','<iframe title="제품 사용 안내 영상" src="…"></iframe>',['4.1.2']);
     });
     check('nested-interactive','조작 요소 중첩', all(doc,'button,a[href]'), el => {
       if (el.querySelector('button,a[href],input,select,textarea')) add('nested-interactive','review','markup','조작 요소가 다른 조작 요소 안에 중첩되었습니다.','원본 HTML과 접근성 트리를 확인하세요. 브라우저가 중첩 마크업을 복구했을 수 있습니다.',el,'8.1.1','링크와 버튼을 서로의 자식이 아닌 별도 요소로 구성하세요.');

@@ -1,8 +1,10 @@
 """Chromium fixtures for current-DOM refresh and visible focus playback (not NVDA/VoiceOver)."""
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-import json,re,time
+import json,os,re,time
 ROOT=Path(__file__).resolve().parents[1]; P=ROOT/'public'; OUT=ROOT/'tests/artifacts'; OUT.mkdir(exist_ok=True)
+# Same lookup as browser_test.py: CHROMIUM_PATH, a system Chromium, else Playwright's own build.
+CHROMIUM=os.environ.get('CHROMIUM_PATH') or ('/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None)
 passed=[]
 def check(name,value):
     assert value,name
@@ -14,17 +16,17 @@ def wait_frame(frame,expression,arg=None):
     raise AssertionError('Frame predicate timed out: '+expression)
 def app(browser):
     page=browser.new_page(viewport={'width':1440,'height':1000})
-    html=(P/'index.html').read_text();scripts=re.findall(r'<script[^>]*src="([^"]+)"',html)
+    html=(P/'index.html').read_text(encoding='utf-8');scripts=re.findall(r'<script[^>]*src="([^"]+)"',html)
     page.set_content(re.sub(r'<script\b[^>]*src="[^"]+"[^>]*></script>|<link\b[^>]*rel="stylesheet"[^>]*>','',html))
-    for name in ['style.css','evidence.css','workspace.css']:page.add_style_tag(content=(P/'assets'/name).read_text())
-    resources={f'assets/{f.name}':f.read_text() for f in (P/'assets').glob('*.js')};resources['demo.html']=(P/'demo.html').read_text()
+    for name in ['style.css','evidence.css','workspace.css']:page.add_style_tag(content=(P/'assets'/name).read_text(encoding='utf-8'))
+    resources={f'assets/{f.name}':f.read_text(encoding='utf-8') for f in (P/'assets').glob('*.js')};resources['demo.html']=(P/'demo.html').read_text(encoding='utf-8')
     page.evaluate('r=>{window.fetch=async p=>{if(!(p in r))throw Error("unapproved resource");return new Response(r[p])}}',resources)
-    for name in scripts:page.add_script_tag(content=(P/name).read_text())
+    for name in scripts:page.add_script_tag(content=(P/name).read_text(encoding='utf-8'))
     return page
 SOURCE='''<html lang="ko"><head><title>현재 DOM 검증</title><style>body{margin:0}main{padding:20px}button{height:38px}.shifter:focus{width:1500px;height:130px;outline:none}footer{height:60px}</style></head><body>
 <main><h1>검사 화면</h1><button id="first">첫째</button><button id="second" class="shifter">레이아웃 변경</button><button id="last">마지막</button><span id="dupe">중복 첫째</span><span id="dupe">중복 둘째</span><img id="image"><details open id="panel"><summary>열린 메뉴</summary><p>내용</p></details><p contenteditable="true" id="edit">편집 가능</p></main><footer>푸터</footer></body></html>'''
 with sync_playwright() as pw:
-    browser=pw.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+    browser=pw.chromium.launch(executable_path=CHROMIUM,headless=True,args=['--no-sandbox'])
     page=app(browser);errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
     check('refresh is unavailable without a live source',page.locator('#refresh-report').is_disabled())
     page.evaluate('(s)=>StudioApp.runSource(s)',SOURCE);page.wait_for_function('StudioApp.getReport()!==null')
@@ -102,7 +104,7 @@ with sync_playwright() as pw:
     # Candidate filtering: include aria-hidden focus bugs; exclude disabled and non-tab stops.
     page.close();page=browser.new_page()
     page.set_content('''<fieldset disabled><legend><button id="legend">legend</button></legend><button id="disabled">disabled</button></fieldset><button id="hidden" hidden>hidden</button><button id="aria-hidden" aria-hidden="true">aria-hidden focus bug</button><div inert><button id="inert">inert</button></div><button id="negative" tabindex="-1">negative</button><button id="positive" tabindex="2">positive</button><input type="radio" name="r" id="radio1"><input type="radio" name="r" id="radio2" checked><div id="shadow"></div>''')
-    for f in ['core.js','evidence.js','focus.js','player.js']:page.add_script_tag(content=(P/'assets'/f).read_text())
+    for f in ['core.js','evidence.js','focus.js','player.js']:page.add_script_tag(content=(P/'assets'/f).read_text(encoding='utf-8'))
     page.evaluate('document.querySelector("#shadow").attachShadow({mode:"open"}).innerHTML="<button id=shadow-child>shadow</button>"')
     ids=page.evaluate('StudioPlayer.candidates().map(n=>n.id)')
     check('candidate list filters disabled, hidden, inert, negative and unchecked grouped radios',not any(n in ids for n in ['disabled','hidden','inert','negative','radio1']))
@@ -113,5 +115,5 @@ with sync_playwright() as pw:
     page.evaluate('StudioPlayer.play({interval:700})');page.wait_for_timeout(1500);page.evaluate('StudioPlayer.pause()')
     check('all rehearsal events remain explicitly distinct from physical Tab',all(e['via']!='Tab' for e in page.evaluate('StudioPlayer.state().focus.events')))
     browser.close()
-(ROOT/'tests/workspace-verification.json').write_text(json.dumps({'passed':len(passed),'tests':passed},ensure_ascii=False,indent=2)+'\n')
+(ROOT/'tests/workspace-verification.json').write_text(json.dumps({'passed':len(passed),'tests':passed},ensure_ascii=False,indent=2)+'\n',encoding='utf-8',newline='\n')
 print(json.dumps({'passed':len(passed)}))

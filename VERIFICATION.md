@@ -1,3 +1,25 @@
+# v0.3.3 검증 기록
+
+2026-10-31, Windows 11 Pro / Node.js 24.22.1 / Python 3.12.10 / Playwright 1.63.0 (Chromium 153)에서 실행했습니다.
+
+## 실제 실행
+
+- `npm ci --ignore-scripts` 후 `node scripts/build.mjs --require-axe`: axe-core 4.13.0 번들, 확장 ZIP 25개 파일(manifest 0.3.3) 확인.
+- `npm test`: 정적·단위 테스트 41개 통과.
+- `python tests/browser_test.py`: 45개 통과.
+- `python tests/evidence_browser_test.py`: 29개 통과.
+- `python tests/workspace_browser_test.py`: 42개 통과.
+- `python tests/rules_browser_test.py`: 기본 규칙 회귀 50개 통과. 같은 파일을 수정 전 main(04aea42)에 실행하면 31개가 실패합니다(실패 대상 오지정, span·href 없는 링크 누락, 숨김·ARIA 이름 iframe 오류, 닫힌 모달의 초점 후보, 내용 기반 이름과 입력 내용 수집, `role="heading"` 수준, 화면 밖 워크스페이스 검사 멈춤).
+- 합계 207개.
+
+수정 전 main에서 이미 실패하던 항목도 있었습니다. `browser_test.py`의 axe 미실행 표시 검사는 axe-core가 실제로 번들된 뒤 갱신되지 않았습니다. `workspace_browser_test.py`의 두 번째 HTML 검사는 미리보기가 화면 밖에 있어 끝나지 않았습니다. `evidence_browser_test.py`·`workspace_browser_test.py`는 `/usr/bin/chromium` 고정 경로 때문에 Windows에서 실행되지 않았습니다. 이번 변경에서 모두 수정했습니다.
+
+같은 고정 예제를 axe-core 4.13.0으로도 검사했습니다. 수정한 기본 규칙은 axe의 `frame-title`·`select-name`·`label`·`role-img-alt`·`svg-img-alt`·`heading-order`가 보고한 요소를 같은 대상으로 보고합니다. `custom-keyboard`에 해당하는 axe 규칙은 없습니다.
+
+## 미검증 범위
+
+PR CI(GitHub Actions, Linux)의 결과는 PR 화면에서 확인합니다. 설치형 확장의 실제 탭 검사·캡처, Edge, NVDA·VoiceOver 실행은 이번에도 검증하지 않았습니다. 기본 규칙은 전체 접근 가능한 이름 계산이 아니며 axe-core와 실제 보조기술 확인을 대체하지 않습니다.
+
 # v0.3.0 검증 기록
 
 2026-09-07, Linux / Node.js 22 / Chromium에서 실행했습니다.

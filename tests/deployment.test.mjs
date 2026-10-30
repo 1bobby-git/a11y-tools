@@ -29,6 +29,19 @@ test('production workflow requires axe, tests the build, and deploys docs', () =
   assert.doesNotMatch(yml, /contents: write/);
 });
 
+test('pull request CI builds and runs static and browser tests without deploy rights', () => {
+  const yml = read('.github/workflows/ci.yml');
+  assert.match(yml, /^\s*pull_request:/m);
+  assert.match(yml, /node scripts\/build\.mjs --require-axe/);
+  assert.match(yml, /git diff --exit-code -- /);
+  assert.match(yml, /run: npm test/);
+  for (const file of ['browser_test.py', 'evidence_browser_test.py', 'workspace_browser_test.py', 'rules_browser_test.py']) {
+    assert.ok(yml.includes(`python tests/${file}`), `CI must run tests/${file}`);
+  }
+  assert.match(yml, /permissions:\s*\n\s*contents: read/);
+  assert.doesNotMatch(yml, /pages: write|id-token: write|contents: write|deploy-pages|upload-pages-artifact/);
+});
+
 test('existing repository deployment never creates a repository or force pushes', () => {
   const ps = read('scripts/deploy.ps1');
   assert.match(ps, /\$Repo = '1bobby-git\/a11y-tools'/);
