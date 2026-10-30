@@ -15,7 +15,7 @@ g.StudioPreview=Object.freeze({connect({channel,mode,limitation}){
       await new Promise(resolve=>{const timer=setTimeout(resolve,500);requestAnimationFrame(()=>requestAnimationFrame(()=>{clearTimeout(timer);resolve();}));});
       if(!innerWidth||!innerHeight)throw new Error('워크스페이스가 보이지 않아 검사하지 않았습니다. 화면을 표시하고 다시 실행하세요.');
       const result=await StudioAudit.run(document,{mode,state:'격리된 HTML 워크스페이스의 현재 DOM'});
-      result.version='0.3.3';result.limitations.push(limitation);
+      result.version='0.3.4';result.limitations.push(limitation);
       result.refresh={basis:'live-dom',refreshedAt:result.createdAt,reloaded:false};
       send('report',result,requestId);
     }catch(e){send('error',e.message||String(e),requestId);}finally{busy=false;}

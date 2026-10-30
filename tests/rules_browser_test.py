@@ -1,4 +1,4 @@
-"""Chromium regressions for built-in rule accuracy (v0.3.3).
+"""Chromium regressions for built-in rule accuracy (v0.3.3, v0.3.4).
 Small offline fixtures compare each built-in rule with the WCAG/ARIA behaviour it
 cites. Results go to tests/artifacts/ (git-ignored); no external site is contacted.
 """
@@ -239,6 +239,82 @@ with sync_playwright() as p:
     serialized = json.dumps(report, ensure_ascii=False)
     for secret in ['HEADING_PRIVATE_DRAFT', 'TYPED_HEADING_SECRET', 'EDITOR_PRIVATE_HEADING', 'LABELLEDBY_PRIVATE_DRAFT',
                    'LABELLEDBY_PRIVATE_DEFAULT', 'LABELLEDBY_WRAPPED_DEFAULT', 'EVIDENCE_PRIVATE_HEADING']:
+        check(f'{secret} does not enter the report', secret not in serialized)
+    page.close()
+
+    # 9. Open Shadow DOM (v0.3.4): a shadow root has no `html` to anchor the first path segment, so
+    # `div > img` also matched a passing look-alike deeper in the same shadow tree. The first
+    # target, "show in source" and the capture then pointed at the passing element.
+    page = fixture(browser, '<html lang="ko"><head><title>Shadow DOM 대상</title></head><body><main>'
+                   '<div id="host"></div><div id="outer"></div></main></body></html>')
+    page.evaluate('''gif => {
+      document.getElementById('host').attachShadow({mode: 'open'}).innerHTML =
+        `<div><div><img alt="정상 그림자 이미지" src="${gif}"></div><img src="${gif}" data-bad="shadow"></div>`;
+      const outer = document.getElementById('outer').attachShadow({mode: 'open'});
+      outer.innerHTML = '<div><div><x-card></x-card></div><x-card></x-card></div>';
+      const cards = outer.querySelectorAll('x-card');
+      cards[0].attachShadow({mode: 'open'}).innerHTML = `<img alt="정상 중첩 이미지" src="${gif}">`;
+      cards[1].attachShadow({mode: 'open'}).innerHTML = `<img src="${gif}" data-bad="nested">`;
+    }''', GIF)
+    report = audit(page)
+    missing = rule(report, 'image-alt')
+    check('both missing-alt images in shadow trees are reported', len(missing) == 2)
+    check('each shadow missing-alt finding has exactly one target', all(f['totalNodes'] == 1 for f in missing))
+    check('the shadow target is the failing image, not a passing look-alike', all('data-bad' in f['nodes'][0]['html'] for f in missing))
+    check('StudioAudit.find resolves a shadow path to the failing image',
+          page.evaluate('(sels) => sels.every(s => StudioAudit.find(s)?.hasAttribute("data-bad"))', [f['selector'] for f in missing]))
+    check('the source locator resolves a shadow path to the failing image',
+          page.evaluate('(sels) => sels.every(s => StudioEvidence.originalNode(s).hasAttribute("data-bad"))', [f['selector'] for f in missing]))
+    check('every shadow inventory selector identifies exactly one element in both resolvers',
+          page.evaluate('(sels) => sels.length === 4 && sels.every(s => { const m = StudioEvidence.matches(s, document); return m.length === 1 && StudioAudit.find(s) === m[0]; })',
+                        [i['selector'] for i in report['inventory']['images']]))
+    check('a unique selector that is not anchored to the shadow root (axe style) still resolves',
+          page.evaluate('''() => ['div#host >>> img[data-bad]', 'div#host >>> div > img[data-bad]'].every(s =>
+              StudioEvidence.matches(s, document).length === 1 && StudioAudit.find(s)?.dataset.bad === 'shadow')'''))
+    page.close()
+
+    # 10. Shadow trees are read where their host is (shadow-including tree order), not after the
+    # whole light DOM: the heading outline and the focus inventory follow the order Tab reaches them.
+    page = fixture(browser, '''<html lang="ko"><head><title>Shadow DOM 순서</title></head><body><main>
+<h1 id="light-h1">문서 제목</h1><button id="before-host">앞 버튼</button>
+<div id="card-host"></div>
+<h3 id="after-host">카드 뒤 소제목</h3><button id="after-button">뒤 버튼</button>
+</main></body></html>''')
+    page.evaluate('''() => { document.getElementById('card-host').attachShadow({mode: 'open'}).innerHTML =
+      '<h2 id="shadow-h2">카드 제목</h2><button id="shadow-button">카드 버튼</button>'; }''')
+    report = audit(page)
+    ids = lambda sels: page.evaluate('(sels) => sels.map(s => StudioAudit.find(s)?.id)', sels)
+    check('a heading in an open shadow root keeps its place in the heading outline',
+          ids([h['selector'] for h in report['inventory']['headings']]) == ['light-h1', 'shadow-h2', 'after-host'])
+    check('the heading after a shadow host follows the shadow heading (no false level jump)', not flagged(report, 'heading-order', 'after-host'))
+    tab_order = []
+    for _ in range(3):
+        page.keyboard.press('Tab')
+        tab_order.append(page.evaluate('(() => { let n = document.activeElement; while (n?.shadowRoot?.activeElement) n = n.shadowRoot.activeElement; return n?.id; })()'))
+    check('Chromium tabs into the shadow control between the light controls', tab_order == ['before-host', 'shadow-button', 'after-button'])
+    check('the focus inventory lists shadow controls in Tab order',
+          ids([f['selector'] for f in report['inventory']['focusables']]) == tab_order)
+    page.close()
+
+    # 11. An SVG whose role takes its name from content is named by its <text>; links and buttons
+    # inside an editor are the user's content, so they are neither read nor reported as unnamed.
+    page = fixture(browser, '''<html lang="ko"><head><title>SVG 버튼과 편집 영역</title></head><body><main>
+<svg id="svg-text-button" role="button" tabindex="0" width="40" height="20"><text y="15">닫기</text></svg>
+<svg id="svg-title-button" role="button" tabindex="0" width="20" height="20"><title>검색</title><text y="15">Q</text></svg>
+<svg id="svg-empty-button" role="button" tabindex="0" width="20" height="20"><rect width="20" height="20"/></svg>
+<div contenteditable="true"><p>본문 <a id="editor-link" href="#ref">EDITOR_PRIVATE_LINK</a> <button id="editor-button">EDITOR_PRIVATE_BUTTON</button></p></div>
+<a id="plain-empty-link" href="#x"></a>
+</main></body></html>''')
+    report = audit(page)
+    focusable = {f['selector']: f['name'] for f in report['inventory']['focusables']}
+    check('an SVG button is named by its <text> content', not flagged(report, 'control-name', 'svg-text-button') and focusable.get('svg#svg-text-button') == '닫기')
+    check('an SVG <title> still names an SVG button first', focusable.get('svg#svg-title-button') == '검색')
+    check('an SVG button without text or title is still reported', flagged(report, 'control-name', 'svg-empty-button'))
+    for element_id in ['editor-link', 'editor-button']:
+        check(f'a control inside an editor (#{element_id}) is not reported as unnamed', not flagged(report, 'control-name', element_id))
+    check('an empty link outside an editor is still reported', flagged(report, 'control-name', 'plain-empty-link'))
+    serialized = json.dumps(report, ensure_ascii=False)
+    for secret in ['EDITOR_PRIVATE_LINK', 'EDITOR_PRIVATE_BUTTON']:
         check(f'{secret} does not enter the report', secret not in serialized)
     page.close()
 

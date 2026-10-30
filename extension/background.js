@@ -24,7 +24,7 @@ async function audit(tabId,state){
   if(new URL(original.url).origin!==new URL(tab.url).origin)throw new Error('검사 중 다른 사이트로 이동했습니다. 다시 검사하세요.');
   const check=await chrome.scripting.executeScript({target:{tabId,documentIds:[item.documentId]},func:id=>globalThis.__studioScanId===id,args:[scanId]});
   if(check[0]?.result!==true)throw new Error('검사 중 원본 문서가 변경되었습니다. 다시 검사하세요.');
-  report.version='0.3.3';report.sourceTab={tabId,windowId:tab.windowId,scanId};await registerLiveSource(report,tab,item.documentId);return report;
+  report.version='0.3.4';report.sourceTab={tabId,windowId:tab.windowId,scanId};await registerLiveSource(report,tab,item.documentId);return report;
 }
 async function saveReport(report){await chrome.storage.local.set({latestReport:report});}
 async function openReport(){await chrome.tabs.create({url:chrome.runtime.getURL('report.html#results')});}

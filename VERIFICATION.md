@@ -1,3 +1,21 @@
+# v0.3.4 검증 기록
+
+2026-10-31, Windows 11 Pro / Node.js 24.22.1 / Python 3.12.10 / Playwright 1.63.0 (Chromium)에서 실행했습니다.
+
+## 실제 실행
+
+- `npm ci --ignore-scripts` 후 `node scripts/build.mjs --require-axe`: axe-core 4.13.0 번들, 확장 ZIP 25개 파일(manifest 0.3.4) 확인. `docs/assets`·`extension/assets`는 `public/assets`와 같고 ZIP 항목은 `extension/` 파일과 같습니다.
+- `npm test`: 정적·단위 테스트 41개 통과.
+- `python tests/browser_test.py`: 45개 통과.
+- `python tests/evidence_browser_test.py`: 29개 통과.
+- `python tests/workspace_browser_test.py`: 42개 통과.
+- `python tests/rules_browser_test.py`: 기본 규칙 회귀 96개 통과(19개 추가). 같은 파일을 수정 전 main(8042c95)에 실행하면 11개가 실패합니다(열린 Shadow DOM에서 실패 대상 대신 통과한 비슷한 이미지를 첫 대상·원본 위치로 해석, 중첩 Shadow DOM 호스트 오해석, Shadow DOM 제목·초점 후보 순서와 그로 인한 제목 수준 건너뜀 오탐, `<text>`만 있는 SVG 버튼의 이름 없음, 편집 영역 안 링크·버튼의 이름 없음 오탐). 나머지 8개는 과잉 수정을 막는 확인(Shadow DOM의 실패 이미지 2개 모두 보고, Chromium 실제 Tab 순서 기록, axe 형식의 고정되지 않은 고유 선택자 해석, `<title>` 우선, 이름 없는 SVG 버튼·편집 영역 밖 빈 링크 계속 보고, 편집 영역 링크·버튼 내용 미수집 2개)이며 수정 전후 모두 통과합니다.
+- 합계 253개.
+
+## 미검증 범위
+
+PR CI(GitHub Actions, Linux)의 결과는 PR 화면에서 확인합니다. 설치형 확장의 실제 탭 검사·원본 위치 표시·캡처, Edge, NVDA·VoiceOver 실행은 검증하지 않았습니다. Shadow DOM 순서는 호스트 위치에 Shadow 트리를 넣는 순서(shadow-including tree order)이며, slot 위치에 따라 화면 순서가 다른 경우는 실제 키보드로 확인해야 합니다. 닫힌 Shadow DOM은 여전히 검사하지 않습니다.
+
 # v0.3.3 검증 기록
 
 2026-10-31, Windows 11 Pro / Node.js 24.22.1 / Python 3.12.10 / Playwright 1.63.0 (Chromium 153)에서 실행했습니다.
